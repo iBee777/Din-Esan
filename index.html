@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบบันทึกลูกค้าฝากขายที่ดิน</title>
@@ -502,83 +503,56 @@
          ต้องอัปโหลดไฟล์นี้ขึ้นที่ใดที่หนึ่งก่อน เช่น GitHub Pages, Netlify หรือเว็บโฮสติ้งของคุณ)
    4. คัดลอก "Client ID" ที่ได้มาวางแทนข้อความด้านล่างนี้
    ================================================== */
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://apis.google.com/js/api.js"></script>   
+let tokenClient;
 const GOOGLE_CLIENT_ID = '203310648822-st6pfgi8f8mdpgjcdvvue0mkgf6nr459.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-const STORAGE_KEY = 'land_client_records';
-let records = [];
-let editingId = null;
-
-let pendingFrontImage = null;
-let pendingBackImage = null;
-let removeFrontFlag = false;
-let removeBackFlag = false;
-
-function genId(){
-  return 'rec_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+// 1. ฟังก์ชันเริ่มต้นระบบเมื่อโหลดหน้าเว็บ
+function handleClientLoad() {
+    gapi.load('client', initializeGapiClient);
 }
 
-function imageKey(id, side){
-  return `deed_image:${id}:${side}`;
+async function initializeGapiClient() {
+    try {
+        await gapi.client.init({
+            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+        });
+        
+        // เปิดใช้ตัวล็อกอินระบบใหม่ของ Google (GIS)
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: SCOPES,
+            callback: async (resp) => {
+                if (resp.error !== undefined) {
+                    throw (resp);
+                }
+                // เมื่อล็อกอินสำเร็จ เปลี่ยนสถานะปุ่ม
+                const statusBadge = document.getElementById('login-status');
+                if (statusBadge) {
+                    statusBadge.innerText = "เชื่อมต่อ Google Drive แล้ว";
+                    statusBadge.className = "badge bg-success";
+                }
+                // รันระบบโหลดข้อมูลเดิมที่มีในไดรฟ์ (ถ้ามี)
+                if (typeof listExistingFiles === 'function') {
+                    listExistingFiles();
+                }
+            },
+        });
+    } catch (error) {
+        console.error('เกิดข้อผิดพลาดในการเริ่มต้นระบบ:', error);
+    }
 }
 
-function compressImage(file){
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error('อ่านไฟล์ไม่สำเร็จ'));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error('โหลดรูปไม่สำเร็จ'));
-      img.onload = () => {
-        const maxDim = 1280;
-        let { width, height } = img;
-        if(width > maxDim || height > maxDim){
-          if(width > height){
-            height = Math.round(height * (maxDim / width));
-            width = maxDim;
-          }else{
-            width = Math.round(width * (maxDim / height));
-            height = maxDim;
-          }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-function setPreview(side, dataUrl){
-  const box = document.getElementById(side + '-preview');
-  if(dataUrl){
-    box.innerHTML = `<img class="img-thumb" src="${dataUrl}" alt="">`;
-  }else{
-    box.innerHTML = `<div class="img-placeholder">ไม่มีรูป</div>`;
-  }
-}
-
-async function loadRecords(){
-  try{
-    const res = await window.storage.get(STORAGE_KEY, false);
-    records = res && res.value ? JSON.parse(res.value) : [];
-  }catch(e){
-    records = [];
-  }
-  render();
-}
-
-async function saveRecords(){
-  try{
-    await window.storage.set(STORAGE_KEY, JSON.stringify(records), false);
-  }catch(e){
-    console.error('บันทึกข้อมูลไม่สำเร็จ', e);
-    alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่');
-  }
+// 2. ฟังก์ชันผูกกับปุ่ม "เข้าสู่ระบบ Google" (สั่งให้หน้าต่างเด้ง)
+function handleAuthClick() {
+    if (tokenClient) {
+        // สั่งให้หน้าต่างป๊อปอัปสีขาวเด้งขึ้นมาเลือก Gmail ทันที
+        tokenClient.requestAccessToken({prompt: 'consent'});
+    } else {
+        alert('ระบบล็อกอินของ Google กำลังโหลด กรุณารอสักครู่แล้วกดใหม่อีกครั้งครับ');
+    }
 }
 
 async function handleImageInput(e){
