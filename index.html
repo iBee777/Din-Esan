@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบบันทึกลูกค้าฝากขายที่ดิน</title>
+<!-- โหลด Library ของ Google สำหรับเชื่อมต่อล็อกอินและระบบคลาวด์เวอร์ชันล่าสุด -->
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://apis.google.com/js/api.js" async defer></script>
 <style>
@@ -384,7 +385,13 @@
 <div class="wrap">
 
   <div class="header">
-    <div class="seal"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAYAAACtWK6eAAC3G0lEQVR42uy9d7xkVZX+/d37nFPp3ro5dc45B7qhSd0kETETVAQxYA6jYnYGHOOYcxoUQVRswIhKEGhy7kznnG/fnKrqpL3fP07VrXxDg/Mb3/H6abupW3XqhL32WutZz3qW4F8/o/rRWgtAsg4B62D1al8IoUu+d/v2OMTirkpNkIY1WfmqRSl3hlQ0KiE8oWUMIRp9fEtqOc2Qoh6hUFq1ayX3I4XC1/2m0N0+AiHpUVoc1AZHtS+2CVRrREa7mTehWwihir4fxLqHHjJWsxpWowFV7lz/9VP6R/zrFozAIO64Q9LYKFi9WpVaiL27djVGbDlTCiZ6vj/NMI3ZvudPBj1RChHXgqpQJCKRMn3LdfC3BpQCFMpx8H0fjUaaJqZlZR+PIUALECJzUrgDSbTQAxLZ6yvdJiQHfaUPmqa5VZjmbjPCdjF58vES1yNZt07S1qa5/PJ/GcwwP+a/bsEQXuKOOxBC+ICf+V335oO1McNfINHzPOWdZsAcldKzrZBRQziCIQVojel74Hpo5eN5PnYipQAtpEZogRYaDaCUEMHCFwiEQOJ7nvZ9X2eMASE0CNL/j9JaGAJpSKNCSqPCNIwxmNZCDBEYlePg9tkD9qZd26Vh7BGmfEZrb0OPodcLIXoBlXOtBsCNN96oP/e5z6l/Pf1/eZChjQJ0rpc4vnFjRUskvsT1OAvlrdFaLw6FI02EIiB88Dy07WB7vgaUFEIHN1UIjZZaa4QQQiAIVrgeDIB02pGI9GPQWuc9GF30sCRai8BetEJrrYN3Cp0+7+AIWkvTNKUMh8E0QUiwkzi2fcwQYiOmflwJ8xHLYouYNq0nz7sEB/yXZ/mXB8mET0jI9xT92w6MMV3nTEvIVynBOWgxyaqIgXLBTmGnBjR2yhfBEhZopBRSpIOhvBUupSzYj7KOIeM20l4i+y4h8oyl7O4mRNq8pECAGjyowPN9TSKhEGg0KK2McNgaK0LhsRjGJUYyhZdUR1Mv7L7PNIx7bNt7QghxZPDerF1rwOVw+f9tY/k/6UH0DVqyep0Ua9Z4g6/tONrg+/Z5Ai73tXeBFY7UYBhg2zi2o4UQfuBltEQG901omU2HS+z3iOCNWqR/r0XWW6CyVpLzEZ02ELQeTFUGDz2Yg5R+bDrfeHI2AgCFRmkQSiA1WhuhkCWIhkGDm0h2G8J4QGv5e9tIPlQxZ86xwc8/9JDJunVK/B8Mwf5PGYheu9bg8ssHQ6j9D+2PjG9ijVbeVULqC81ItAkhUckBPN/zUQKEFAJkduGqND4EWsvsYkYV3VohZHo9azQqSDLSRqUzx8kxCB04BLTW6ffpUks/57HlWE+O18k1jmzopoOr0EGohg6CPIVSEjANy5CRGAiNl0x0aS3+qpC/Pd4u75+yZkqq1P37l4H8/8EoQBDE1oOhQmrj3pkyxOvw/WutcHQWhoRUEsdz05kxcjBvCFYSGkHmFbRK+4w0sqQ1Al0qBMoub6HT4VRmR895v9AInXEMIiffKPROusBACp+kKBdKDmZFWVelB52RBJQmSGxQgbHEKsDz8Gxnl5DyVtf3fhNdOGtf4IFvkNx4o0AIJUD/y0D+iQ0jnVsA4G7dc55Q/ru1kJealRVR7BROKqXSwY8UQR6RvS1Cg1BoDTK9YPPyg/S/RYFRZIAnrVXaO+SajyrwMDrtTQp/ZNbAgkR/8LNa5z46nZO+yDx/k/1c4b1Rg8YmisI1jdZKawL/GYpEJOEwXv/AgDbM36Pd74fmzXo6FwVLexT9LwP550m+jYxh6Bu0tK/c+xqh1QdChrkaM4Q3MIDSytMoKUUmi87uzJlwKrOQhMgspPwFqzP/LuE5dF7YlbvrD/Va7ufF4HGGTtp1xokhhAzeJันตราครุฑแดงพญาทำ" alt="ตราครุฑ"></div>
+    <div class="seal"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAYAAACtWK6eAAC3G0lEQVR42uy9d7xkVZX+/d37nFPp3ro5dc45B7qhSd0kETETVAQxYA6jYnYGHOOYcxoUQVRswIhKEGhy7kznnG/fnKrqpL3fP07VrXxDg/Mb3/H6abupW3XqhL32WutZz3qW4F8/o/rRWgtAsg4B62D1al8IoUu+d/v2OMTirkpNkIY1WfmqRSl3hlQ0KiE8oWUMIRp9fEtqOc2Qoh6hUFq1ayX3I4XC1/2m0N0+AiHpUVoc1AZHtS+2CVRrREa7mTehWwihir4fxLqHHjJWsxpWowFV7lz/9VP6R/zrFozAIO64Q9LYKFi9WpVaiL27djVGbDlTCiZ6vj/NMI3ZvudPBj1RChHXgqpQJCKRMn3LdfC3BpQCFMpx8H0fjUaaJqZlZR+PIUALECJzUrgDSbTQAxLZ6yvdJiQHfaUPmqa5VZjmbjPCdjF58vES1yNZt07S1qa5/PJ/GcwwP+a/bsEQXuKOOxBC+ICf+V335oO1McNfINHzPOWdZsAcldKzrZBRQziCIQVojel74Hpo5eN5PnYipQAtpEZogRYaDaCUEMHCFwiEQOJ7nvZ9X2eMASE0CNL/j9JaGAJpSKNCSqPCNIwxmNZCDBEYlePg9tkD9qZd26Vh7BGmfEZrb0OPodcLIXoBlXOtBsCNN96oP/e5z6l/Pf1/eZChjQJ0rpc4vnFjRUskvsT1OAvlrdFaLw6FI02EIiB88Dy07WB7vgaUFEIHN1UIjZZaa4QQQiAIVrgeDIB02pGI9GPQWuc9GF30sCRai8BetEJrrYN3Cp0+7+AIWkvTNKUMh8E0QUiwkzi2fcwQYiOmflwJ8xHLYouYNq0nz7sEB/yXZ/mXB8mET0jI9xT92w6MMV3nTEvIVynBOWgxyaqIgXLBTmGnBjR2yhfBEhZopBRSpIOhvBUupSzYj7KOIeM20l4i+y4h8oyl7O4mRNq8pECAGjyowPN9TSKhEGg0KK2McNgaK0LhsRjGJUYyhZdUR1Mv7L7PNIx7bNt7QghxZPDerF1rwOVw+f9tY/k/6UH0DVqyep0Ua9Z4g6/tONrg+/Z5Ai73tXeBFY7UYBhg2zi2o4UQfuBltEQG901omU2HS+z3iOCNWqR/r0XWW6CryVbFXitation type: Web application
+      - Authorized JavaScript origins: ใส่ URL ของหน้านี้ที่จะใช้งานจริง
+        (ต้องเป็น http:// หรือ https:// เท่านั้น เปิดจากไฟล์ในเครื่องตรงๆ (file://) จะใช้ไม่ได้
+         ต้องอัปโหลดไฟล์นี้ขึ้นที่ใดที่หนึ่งก่อน เช่น GitHub Pages, Netlify หรือเว็บโฮสติ้งของคุณ)
+   4. คัดลอก "Client ID" ที่ได้มาวางแทนข้อความด้านล่างนี้
+   ================================================== */
+  <div class="seal"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAADICAYAAACtWK6eAAC3G0lEQVR42uy9d7xkVZX+/d37nFPp3ro5dc45B7qhSd0kETETVAQxYA6jYnYGHOOYcxoUQVRswIhKEGhy7kznnG/fnKrqpL3fP07VrXxDg/Mb3/H6abupW3XqhL32WutZz3qW4F8/o/rRWgtAsg4B62D1al8IoUu+d/v2OMTirkpNkIY1WfmqRSl3hlQ0KiE8oWUMIRp9fEtqOc2Qoh6hUFq1ayX3I4XC1/2m0N0+AiHpUVoc1AZHtS+2CVRrREa7mTehWwihir4fxLqHHjJWsxpWowFV7lz/9VP6R/zrFozAIO64Q9LYKFi9WpVaiL27djVGbDlTCiZ6vj/NMI3ZvudPBj1RChHXgqpQJCKRMn3LdfC3BpQCFMpx8H0fjUaaJqZlZR+PIUALECJzUrgDSbTQAxLZ6yvdJiQHfaUPmqa5VZjmbjPCdjF58vES1yNZt07S1qa5/PJ/GcwwP+a/bsEQXuKOOxBC+ICf+V335oO1McNfINHzPOWdZsAcldKzrZBRQziCIQVojel74Hpo5eN5PnYipQAtpEZogRYaDaCUEMHCFwiEQOJ7nvZ9X2eMASE0CNL/j9JaGAJpSKNCSqPCNIwxmNZCDBEYlePg9tkD9qZd26Vh7BGmfEZrb0OPodcLIXoBlXOtBsCNN96oP/e5z6l/Pf1/eZChjQJ0rpc4vnFjRUskvsT1OAvlrdFaLw6FI02EIiB88Dy07WB7vgaUFEIHN1UIjZZaa4QQQiAIVrgeDIB02pGI9GPQWuc9GF30sCRai8BetEJrrYN3Cp0+7+AIWkvTNKUMh8E0QUiwkzi2fcwQYiOmflwJ8xHLYouYNq0nz7sEB/yXZ/mXB8mET0jI9xT92w6MMV3nTEvIVynBOWgxyaqIgXLBTmGnBjR2yhfBEhZopBRSpIOhvBUupSzYj7KOIeM20l4i+y4h8oyl7O4mRNq8pECAGjyowPN9TSKhEGg0KK2McNgaK0LhsRjGJUYyhZdUR1Mv7L7PNIx7bNt7QghxZPDerF1rwOVw+f9tY/k/6UH0DVqyep0Ua9Z4g6/tONrg+/Z5Ai73tXeBFY7UYBhg2zi2o4UQfuBltEQG901omU2HS+z3iOCNWqR/r0XWW6CyVpLzEZ02ELQeTFUGDz2Yg5R+bDrfeHI2AgCFRmkQSiA1WhuhkCWIhkGDm0h2G8J4QGv5e9tIPlQxZ86xwc8/9JDJunVK/B8Mwf5PGYheu9bg8ssHQ6j9D+2PjG9ijVbeVULqC81ItAkhUckBPN/zUQKEFAJkduGqND4EWsvsYkYV3VohZHo9azQqSDLSRqUzx8kxCB04BLTW6ffpUks/57HlWE+O18k1jmzopoOr0EGohg6CPIVSEjANy5CRGAiNl0x0aS3+qpC/Pd4u75+yZkqq1P37l4H8/8EoQBDE1oOhQmrj3pkyxOvw/WutcHQWhoRUEsdz05kxcjBvCFYSGkHmFbRK+4w0sqQ1Al0qBMoub6HT4VRmR895v9AInXEMIiffKPROusBACp+kKBdKDmZFWVelB52RBJQmSGxQgbHEKsDz8Gxnl5DyVtf3fhNdOGtf4IFvkNx4o0AIJUD/y0D+iQ0jnVsA4G7dc55Q/ru1kJealRVR7BROKqXSwY8UQR6RvS1Cg1BoDTK9YPPyg/S/RYFRZIAnrVXaO+SajyrwMDrtTQp/ZNbAgkR/8LNa5z46nZO+yDx/k/1c4b1Rg8YmisI1jdZKawL/GYpEJOEwXv/AgDbM36Pd74fmzXo6FwVLexT9LwP550m+jYxh6Bu0tK/c+xqh1QdChrkaM4Q3MIDSytMoKUUmi87uzJlwKrOQhMgspPwFqzP/LuE5dF7YlbvrD/Va7ufF4HGGTtp1xokhhAzeJันตราครุฑแดงพญาทำ" alt="ตราครุฑ"></div>
     <div>
       <h1>ระบบบันทึกลูกค้าฝากขายที่ดิน</h1>
       <p>คลังข้อมูลสัญญา และทำเลที่ดินออนไลน์ อีสานตอนใต้</p>
@@ -506,17 +513,19 @@ let pendingBackImage = null;
 let removeFrontFlag = false;
 let removeBackFlag = false;
 
-// เริ่มต้นโหลดข้อมูลเบื้องต้นจากหน่วยความจำเครื่อง
+// สั่งให้ระบบเริ่มทำงานอย่างเป็นทางการเมื่อโหลดข้อมูลคลังคำสั่งเสร็จสิ้น
 window.addEventListener('DOMContentLoaded', () => {
   initStorage();
   loadLocalData();
   renderList();
-  
-  // บังคับรันเรียกใช้ Google API หลังเปิดเว็บหน้าจอเสร็จสิ้น
+});
+
+// บังคับสั่งให้สคริปต์ความปลอดภัย Google API เริ่มทำงานแบบอัตโนมัติ
+window.onload = function() {
   if (typeof gapi !== 'undefined') {
       gapi.load('client', initializeGapiClient);
   }
-});
+};
 
 async function initializeGapiClient() {
     try {
@@ -524,7 +533,7 @@ async function initializeGapiClient() {
             discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         });
         
-        // ประกาศตัวเรียกหน้าต่างระบบล็อกอินแบบใหม่ของ Google
+        // ผูกระบบเข้าสู่ระบบความปลอดภัยยุคใหม่ (Google Identity Services)
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
             scope: SCOPES,
@@ -544,10 +553,10 @@ async function initializeGapiClient() {
 
 function handleAuthClick() {
     if (tokenClient) {
-        // บังคับหน้าต่างป๊อปอัปสีขาวเด้งเรียกบัญชี
+        // คำสั่งไม้ตายสั่งให้หน้าต่างล็อกอิน Google ป๊อปอัปสีขาวเด้งขึ้นมา
         tokenClient.requestAccessToken({prompt: 'consent'});
     } else {
-        alert('ระบบล็อกอินกำลังโหลด กรุณารอสักครู่แล้วกดใหม่อีกครั้งครับ');
+        alert('ระบบล็อกอินกำลังโหลดตัวตน กรุณารอสักครู่แล้วกดใหม่อีกครั้งครับ');
     }
 }
 
@@ -890,14 +899,12 @@ function closeLightbox(){
 async function syncWithGoogleDrive() {
   if(!accessToken) return;
   try {
-    // 1. ค้นหาไฟล์สำรองเก่าที่มีอยู่แล้วบน Google Drive
     const response = await gapi.client.drive.files.list({
       q: `name='${BACKUP_FILE_NAME}' and trashed=false`,
       fields: 'files(id, name)',
     });
     const files = response.result.files;
 
-    // รวบรวมข้อมูลโฉนดฐานรูปภาพและข้อความทั้งหมดเพื่อส่งขี้นคลาวด์
     const bundle = {
       records: records,
       images: {}
@@ -915,7 +922,6 @@ async function syncWithGoogleDrive() {
     const contentStr = JSON.stringify(bundle);
 
     if (files && files.length > 0) {
-      // อัปเดตไฟล์เดิมที่มีอยู่แล้ว
       const fileId = files[0].id;
       await gapi.client.request({
         path: `/upload/drive/v3/files/${fileId}`,
@@ -924,7 +930,6 @@ async function syncWithGoogleDrive() {
         body: contentStr
       });
     } else {
-      // สร้างไฟล์ใหม่ในคลาวด์ไดรฟ์ครั้งแรก
       const metadata = {
         name: BACKUP_FILE_NAME,
         mimeType: 'application/json'
