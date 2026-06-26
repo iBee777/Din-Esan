@@ -373,6 +373,135 @@
     font-size: 18px; color: var(--ink-soft); line-height:1;
   }
 
+  /* ===== Area (ไร่-งาน-ตารางวา) ===== */
+  .area-fields{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  }
+  .area-fields .area-unit{
+    display:flex; align-items:center; gap:6px;
+  }
+  .area-fields input{
+    width: 78px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-family: inherit;
+    font-size: 14.5px;
+    color: var(--ink);
+    outline: none;
+    text-align:right;
+  }
+  .area-fields input:focus{
+    border-color: var(--pine);
+    box-shadow: 0 0 0 2px rgba(47,74,58,0.12);
+  }
+  .area-fields .area-unit-label{
+    font-size: 13.5px; color: var(--ink-soft); font-weight:600;
+  }
+
+  /* ===== Map embed modal ===== */
+  .map-overlay{
+    display:none;
+    position: fixed; inset:0;
+    background: rgba(30,26,18,0.78);
+    z-index: 999;
+    align-items:center; justify-content:center;
+    padding: 24px;
+  }
+  .map-overlay.open{ display:flex; }
+  .map-box{
+    background: var(--card);
+    border-radius: 10px;
+    padding: 14px;
+    width: min(640px, 92vw);
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .map-box iframe{
+    width: 100%;
+    height: min(60vh, 420px);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    display:block;
+  }
+  .map-header{
+    display:flex; justify-content:space-between; align-items:center;
+    font-size: 14px; font-weight:600; color: var(--pine-dark);
+  }
+  .map-header button{
+    border:none; background:none; cursor:pointer;
+    font-size: 18px; color: var(--ink-soft); line-height:1;
+  }
+  .map-footer{
+    display:flex; justify-content:flex-end;
+  }
+  .map-footer a{
+    font-size: 13px; color: var(--pine-dark); font-weight:600;
+    text-decoration:none;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 7px 14px;
+  }
+  .map-footer a:hover{ background: var(--paper-dark); }
+
+  /* ===== Commission / Marketing box ===== */
+  .commission-box{
+    background: #F0F7F2;
+    border: 1px solid var(--pine);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-top: 4px;
+  }
+  .commission-row{
+    display: flex; flex-wrap: wrap; gap: 12px;
+    align-items: center;
+    font-size: 13.5px;
+    color: var(--ink);
+  }
+  .commission-row b{ color: var(--pine-dark); }
+  .commission-net{
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--pine-dark);
+  }
+  .marketing-row{
+    margin-top: 10px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13.5px;
+  }
+  .marketing-row input[type="checkbox"]{
+    width: 16px; height: 16px; cursor: pointer; accent-color: var(--clay);
+  }
+  .marketing-cost-row{
+    margin-top: 10px;
+    display: none;
+  }
+  .marketing-cost-row.show{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .marketing-cost-row label{ font-size: 12.5px; font-weight:600; color: var(--ink-soft); white-space:nowrap; }
+  .marketing-cost-row input{
+    width: 160px;
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    outline: none;
+  }
+  .marketing-cost-row input:focus{ border-color: var(--pine); }
+  .badge-marketing{
+    display: inline-block;
+    background: var(--clay);
+    color: #fff;
+    font-size: 11.5px;
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 2px 7px;
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+
   @media (max-width: 620px){
     .form-grid{ grid-template-columns: 1fr; }
     .record{ grid-template-columns: 1fr; }
@@ -420,6 +549,23 @@
           <label>ราคา (บาท)</label>
           <input type="text" id="f-price" inputmode="numeric" placeholder="เช่น 1,500,000">
         </div>
+        <div class="field full">
+          <label>เนื้อที่</label>
+          <div class="area-fields">
+            <div class="area-unit">
+              <input type="number" id="f-area-rai" inputmode="numeric" min="0" step="1" placeholder="0">
+              <span class="area-unit-label">ไร่</span>
+            </div>
+            <div class="area-unit">
+              <input type="number" id="f-area-ngan" inputmode="numeric" min="0" max="3" step="1" placeholder="0">
+              <span class="area-unit-label">งาน</span>
+            </div>
+            <div class="area-unit">
+              <input type="number" id="f-area-wah" inputmode="decimal" min="0" max="99.9" step="0.1" placeholder="0">
+              <span class="area-unit-label">ตารางวา</span>
+            </div>
+          </div>
+        </div>
         <div class="field">
           <label>พิกัด</label>
           <input type="text" id="f-coords" placeholder="เช่น 17.1664, 104.1486 หรือชื่อสถานที่">
@@ -440,6 +586,24 @@
             <label class="file-label" for="f-deed-back-gallery">เลือกจากคลังภาพ</label>
             <input type="file" id="f-deed-back-gallery" accept="image/*" data-side="back">
             <button type="button" class="img-remove-btn" id="back-remove-btn" style="display:none;">ลบรูป</button>
+          </div>
+        </div>
+        <div class="field full">
+          <label>ค่านายหน้าและการตลาด</label>
+          <div id="commission-box" class="commission-box" style="display:none;">
+            <div class="commission-row">
+              <span>ค่านายหน้า 3%: <b id="commission-amount">—</b></span>
+              <span class="commission-net">คงเหลือสุทธิ: <span id="commission-net">—</span></span>
+            </div>
+            <div class="marketing-row">
+              <input type="checkbox" id="f-marketing" name="marketing">
+              <label for="f-marketing">สนใจทำการตลาดเพิ่มเติม</label>
+            </div>
+            <div class="marketing-cost-row" id="marketing-cost-row">
+              <label for="f-marketing-cost">ค่าใช้จ่ายการตลาด (บาท):</label>
+              <input type="text" id="f-marketing-cost" inputmode="numeric" placeholder="เช่น 5,000">
+              <span style="font-size:12px; color:var(--clay-dark); font-style:italic;">ชำระในวันเซ็นต์สัญญาแต่งตั้งนายหน้า</span>
+            </div>
           </div>
         </div>
         <div class="field full">
@@ -484,6 +648,10 @@
 
 </div>
 
+<div style="text-align:center; padding: 18px 20px 28px; font-size: 13px; color: var(--ink-soft); border-top: 1px solid var(--line); margin-top: 16px;">
+  จัดทำโดย <strong style="color: var(--pine-dark);">iBeePhoto</strong> &nbsp;|&nbsp; โทร. <a href="tel:0645298287" style="color: var(--clay-dark); text-decoration:none; font-weight:600;">064-529-8287</a> &nbsp;|&nbsp; Line: <span style="color: var(--clay-dark); font-weight:600;">daboybee77</span>
+</div>
+
 <div class="lightbox-overlay" id="lightbox-overlay">
   <div class="lightbox-box">
     <div class="lightbox-header">
@@ -491,6 +659,19 @@
       <button type="button" id="lightbox-close">&times;</button>
     </div>
     <img id="lightbox-img" src="" alt="รูปโฉนด">
+  </div>
+</div>
+
+<div class="map-overlay" id="map-overlay">
+  <div class="map-box">
+    <div class="map-header">
+      <span id="map-title">แผนที่ตำแหน่งที่ดิน</span>
+      <button type="button" id="map-close">&times;</button>
+    </div>
+    <iframe id="map-iframe" src="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+    <div class="map-footer">
+      <a id="map-external-link" href="#" target="_blank" rel="noopener">เปิดใน Google Maps</a>
+    </div>
   </div>
 </div>
 
@@ -654,10 +835,85 @@ function mapLinkFor(coords){
   return `https://www.google.com/maps?q=${encodeURIComponent(cleaned)}`;
 }
 
+function mapEmbedFor(coords){
+  if(!coords) return '';
+  const cleaned = coords.trim();
+  if(!cleaned) return '';
+  return `https://maps.google.com/maps?q=${encodeURIComponent(cleaned)}&output=embed`;
+}
+
+function openMap(coords){
+  const embedUrl = mapEmbedFor(coords);
+  if(!embedUrl) return;
+  document.getElementById('map-iframe').src = embedUrl;
+  document.getElementById('map-external-link').href = mapLinkFor(coords);
+  document.getElementById('map-overlay').classList.add('open');
+}
+
+function closeMap(){
+  document.getElementById('map-overlay').classList.remove('open');
+  document.getElementById('map-iframe').src = '';
+}
+
+document.getElementById('map-close').addEventListener('click', closeMap);
+document.getElementById('map-overlay').addEventListener('click', (e) => {
+  if(e.target.id === 'map-overlay') closeMap();
+});
+
 function formatPrice(price){
   const n = Number(String(price).replace(/[, ]/g, ''));
   if(!price || isNaN(n)) return '';
   return n.toLocaleString('th-TH') + ' บาท';
+}
+
+function updateCommissionBox(){
+  const priceInput = document.getElementById('f-price');
+  const raw = String(priceInput.value).replace(/[,\s]/g, '');
+  const n = Number(raw);
+  const box = document.getElementById('commission-box');
+  if(!raw || isNaN(n) || n <= 0){
+    box.style.display = 'none';
+    return;
+  }
+  box.style.display = 'block';
+  const commission = Math.round(n * 0.03);
+  const net = n - commission;
+  document.getElementById('commission-amount').textContent = commission.toLocaleString('th-TH') + ' บาท';
+  document.getElementById('commission-net').textContent = net.toLocaleString('th-TH') + ' บาท';
+}
+
+document.getElementById('f-price').addEventListener('input', updateCommissionBox);
+
+document.getElementById('f-marketing').addEventListener('change', function(){
+  const row = document.getElementById('marketing-cost-row');
+  if(this.checked){
+    row.classList.add('show');
+  } else {
+    row.classList.remove('show');
+    document.getElementById('f-marketing-cost').value = '';
+  }
+});
+
+document.getElementById('f-marketing-cost').addEventListener('input', (e) => {
+  const input = e.target;
+  const cursorFromEnd = input.value.length - input.selectionStart;
+  const digitsOnly = input.value.replace(/[^\d]/g, '');
+  const formatted = digitsOnly ? Number(digitsOnly).toLocaleString('en-US') : '';
+  input.value = formatted;
+  const pos = Math.max(0, formatted.length - cursorFromEnd);
+  input.setSelectionRange(pos, pos);
+});
+
+function formatArea(r){
+  const rai = Number(r.areaRai) || 0;
+  const ngan = Number(r.areaNgan) || 0;
+  const wah = Number(r.areaWah) || 0;
+  if(!rai && !ngan && !wah) return '';
+  const parts = [];
+  if(rai) parts.push(`${rai} ไร่`);
+  if(ngan) parts.push(`${ngan} งาน`);
+  if(wah) parts.push(`${wah} ตารางวา`);
+  return parts.join(' ') || '0 ตารางวา';
 }
 
 function render(){
@@ -693,14 +949,16 @@ function render(){
           ${r.phone ? `<span><b>โทร:</b> ${escapeHtml(r.phone)}</span>` : ''}
           ${r.social ? `<span><b>ไลน์/เฟสบุ๊ค:</b> ${escapeHtml(r.social)}</span>` : ''}
           ${r.deed ? `<span><b>โฉนดเลขที่:</b> ${escapeHtml(r.deed)}</span>` : ''}
+          ${formatArea(r) ? `<span><b>เนื้อที่:</b> ${escapeHtml(formatArea(r))}</span>` : ''}
           ${r.price ? `<span><b>ราคา:</b> ${escapeHtml(formatPrice(r.price))}</span>` : ''}
+          ${r.price ? (() => { const n = Number(String(r.price).replace(/[,\s]/g,'')); if(!isNaN(n)&&n>0){ const c=Math.round(n*0.03); const net=n-c; return `<span><b>ค่านายหน้า 3%:</b> ${c.toLocaleString('th-TH')} บาท &nbsp;|&nbsp; <b>คงเหลือ:</b> ${net.toLocaleString('th-TH')} บาท${r.marketing?'<span class="badge-marketing">ทำการตลาด</span>':''}${r.marketingCost?` <span style="font-size:12px;color:var(--clay-dark)">(ค่าการตลาด: ${Number(String(r.marketingCost).replace(/[,\s]/g,'')).toLocaleString('th-TH')} บาท)</span>`:''}</span>`; } return ''; })() : ''}
           ${r.coords ? `<span><b>พิกัด:</b> ${escapeHtml(r.coords)}</span>` : ''}
         </div>
         ${r.notes ? `<div class="notes">${escapeHtml(r.notes)}</div>` : ''}
         <div class="date">บันทึกเมื่อ ${formatDate(r.createdAt)}${r.updatedAt && r.updatedAt !== r.createdAt ? ' · แก้ไขล่าสุด ' + formatDate(r.updatedAt) : ''}</div>
       </div>
       <div class="record-actions">
-        ${mapUrl ? `<button class="icon-btn map-btn" title="เปิด Google Maps" onclick="window.open('${mapUrl}', '_blank')">Maps</button>` : ''}
+        ${mapUrl ? `<button class="icon-btn map-btn" title="เปิดแผนที่" data-coords="${escapeHtml(r.coords)}" onclick="openMap(this.dataset.coords)">Maps</button>` : ''}
         ${r.hasFront ? `<button class="icon-btn deed-btn" title="ดูรูปหน้าโฉนด" onclick="viewDeedImage('${r.id}','front')">หน้า</button>` : ''}
         ${r.hasBack ? `<button class="icon-btn deed-btn" title="ดูรูปหลังโฉนด" onclick="viewDeedImage('${r.id}','back')">หลัง</button>` : ''}
         <button class="icon-btn" title="แก้ไข" onclick="startEdit('${r.id}')">แก้ไข</button>
@@ -742,8 +1000,15 @@ function clearForm(){
   document.getElementById('f-social').value = '';
   document.getElementById('f-deed').value = '';
   document.getElementById('f-price').value = '';
+  document.getElementById('f-area-rai').value = '';
+  document.getElementById('f-area-ngan').value = '';
+  document.getElementById('f-area-wah').value = '';
   document.getElementById('f-coords').value = '';
   document.getElementById('f-notes').value = '';
+  document.getElementById('f-marketing').checked = false;
+  document.getElementById('f-marketing-cost').value = '';
+  document.getElementById('marketing-cost-row').classList.remove('show');
+  document.getElementById('commission-box').style.display = 'none';
   resetImageState();
 }
 
@@ -757,8 +1022,19 @@ async function startEdit(id){
   document.getElementById('f-social').value = r.social || '';
   document.getElementById('f-deed').value = r.deed || '';
   document.getElementById('f-price').value = r.price ? Number(String(r.price).replace(/[^\d]/g, '')).toLocaleString('en-US') : '';
+  document.getElementById('f-area-rai').value = r.areaRai || '';
+  document.getElementById('f-area-ngan').value = r.areaNgan || '';
+  document.getElementById('f-area-wah').value = r.areaWah || '';
   document.getElementById('f-coords').value = r.coords || '';
   document.getElementById('f-notes').value = r.notes || '';
+  document.getElementById('f-marketing').checked = r.marketing || false;
+  document.getElementById('f-marketing-cost').value = r.marketingCost || '';
+  if(r.marketing){
+    document.getElementById('marketing-cost-row').classList.add('show');
+  } else {
+    document.getElementById('marketing-cost-row').classList.remove('show');
+  }
+  updateCommissionBox();
 
   pendingFrontImage = null;
   pendingBackImage = null;
@@ -914,6 +1190,7 @@ function exportToExcel(){
     'ไลน์ / เฟสบุ๊ค': r.social || '',
     'หมายเลขโฉนด': r.deed || '',
     'ราคา (บาท)': r.price ? Number(String(r.price).replace(/[, ]/g, '')) || r.price : '',
+    'เนื้อที่ (ไร่-งาน-ตารางวา)': formatArea(r) || '',
     'พิกัด / สถานที่': r.coords || '',
     'ลิงก์ Google Maps': mapLinkFor(r.coords) || '',
     'มีรูปหน้าโฉนด': r.hasFront ? 'มี' : '',
@@ -926,7 +1203,7 @@ function exportToExcel(){
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [
     { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
-    { wch: 14 }, { wch: 22 }, { wch: 36 }, { wch: 12 }, { wch: 12 },
+    { wch: 14 }, { wch: 20 }, { wch: 22 }, { wch: 36 }, { wch: 12 }, { wch: 12 },
     { wch: 30 }, { wch: 18 }, { wch: 18 }
   ];
 
@@ -1141,8 +1418,13 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
     social: document.getElementById('f-social').value.trim(),
     deed: document.getElementById('f-deed').value.trim(),
     price: document.getElementById('f-price').value.trim(),
+    areaRai: document.getElementById('f-area-rai').value.trim(),
+    areaNgan: document.getElementById('f-area-ngan').value.trim(),
+    areaWah: document.getElementById('f-area-wah').value.trim(),
     coords: document.getElementById('f-coords').value.trim(),
     notes: document.getElementById('f-notes').value.trim(),
+    marketing: document.getElementById('f-marketing').checked,
+    marketingCost: document.getElementById('f-marketing-cost').value.trim(),
   };
 
   const id = editingId || genId();
