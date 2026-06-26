@@ -906,6 +906,47 @@
 </div>
 
 <script>
+/* ===== localStorage polyfill สำหรับ window.storage =====
+   แทนที่ window.storage (Claude Artifacts API) ด้วย localStorage
+   เพื่อให้ใช้งานได้ในเบราว์เซอร์ทั่วไป
+*/
+if(!window.storage){
+  window.storage = {
+    get: async function(key, shared){
+      try{
+        const value = localStorage.getItem('ws:' + key);
+        if(value === null) throw new Error('Key not found: ' + key);
+        return { key, value, shared: !!shared };
+      }catch(e){ throw e; }
+    },
+    set: async function(key, value, shared){
+      try{
+        localStorage.setItem('ws:' + key, value);
+        return { key, value, shared: !!shared };
+      }catch(e){
+        if(e.name === 'QuotaExceededError'){
+          throw new Error('พื้นที่จัดเก็บเต็ม กรุณาลบข้อมูลเก่าหรือล้างรูปบางส่วนออกก่อน');
+        }
+        throw e;
+      }
+    },
+    delete: async function(key, shared){
+      localStorage.removeItem('ws:' + key);
+      return { key, deleted: true, shared: !!shared };
+    },
+    list: async function(prefix, shared){
+      const keys = [];
+      const p = prefix ? 'ws:' + prefix : 'ws:';
+      for(let i = 0; i < localStorage.length; i++){
+        const k = localStorage.key(i);
+        if(k && k.startsWith(p)) keys.push(k.slice(3));
+      }
+      return { keys, prefix, shared: !!shared };
+    }
+  };
+}
+/* ===== จบ polyfill ===== */
+
 /* ====== ตั้งค่า Google Drive (ทำครั้งเดียว) ======
    1. ไปที่ https://console.cloud.google.com/ สร้างโปรเจกต์ใหม่ (หรือใช้โปรเจกต์เดิม)
    2. เปิดใช้งาน "Google Drive API" ในเมนู APIs & Services > Library
