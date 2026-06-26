@@ -12,10 +12,6 @@
     <link rel="manifest" href="site.webmanifest">
 
     <link rel="stylesheet" href="style.css">
-</head>
-<body>
-    </body>
-</html>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -642,6 +638,14 @@
           <input type="text" id="f-deed" placeholder="เช่น 12345">
         </div>
         <div class="field">
+          <label>อำเภอ</label>
+          <input type="text" id="f-district" placeholder="เช่น เมืองสกลนคร">
+        </div>
+        <div class="field">
+          <label>จังหวัด</label>
+          <input type="text" id="f-province" placeholder="เช่น สกลนคร">
+        </div>
+        <div class="field">
           <label>ราคา (บาท)</label>
           <input type="text" id="f-price" inputmode="numeric" placeholder="เช่น 1,500,000">
         </div>
@@ -1086,6 +1090,8 @@ function render(){
       (r.phone||'').toLowerCase().includes(q) ||
       (r.deed||'').toLowerCase().includes(q) ||
       (r.social||'').toLowerCase().includes(q) ||
+      (r.district||'').toLowerCase().includes(q) ||
+      (r.province||'').toLowerCase().includes(q) ||
       (String(r.price||'')).toLowerCase().includes(q);
   }).sort((a,b) => b.createdAt - a.createdAt);
 
@@ -1112,6 +1118,7 @@ function render(){
           ${r.phone ? `<span><b>โทร:</b> ${escapeHtml(r.phone)}</span>` : ''}
           ${r.social ? `<span><b>ไลน์/เฟสบุ๊ค:</b> ${escapeHtml(r.social)}</span>` : ''}
           ${r.deed ? `<span><b>โฉนดเลขที่:</b> ${escapeHtml(r.deed)}</span>` : ''}
+          ${(r.district || r.province) ? `<span><b>ที่ตั้ง:</b> ${[r.district, r.province].filter(Boolean).map(escapeHtml).join(' ')}</span>` : ''}
           ${formatArea(r) ? `<span><b>เนื้อที่:</b> ${escapeHtml(formatArea(r))}</span>` : ''}
           ${r.price ? `<span><b>ราคา:</b> ${escapeHtml(formatPrice(r.price))}</span>` : ''}
           ${r.price ? (() => { const n = Number(String(r.price).replace(/[,\s]/g,'')); if(!isNaN(n)&&n>0){ const c=Math.round(n*0.03); const net=n-c; return `<span><b>ค่านายหน้า 3%:</b> ${c.toLocaleString('th-TH')} บาท &nbsp;|&nbsp; <b>คงเหลือ:</b> ${net.toLocaleString('th-TH')} บาท${r.marketing?'<span class="badge-marketing">ทำการตลาด</span>':''}${r.marketingCost?` <span style="font-size:12px;color:var(--clay-dark)">(ค่าการตลาด: ${Number(String(r.marketingCost).replace(/[,\s]/g,'')).toLocaleString('th-TH')} บาท)</span>`:''}</span>`; } return ''; })() : ''}
@@ -1162,6 +1169,8 @@ function clearForm(){
   document.getElementById('f-phone').value = '';
   document.getElementById('f-social').value = '';
   document.getElementById('f-deed').value = '';
+  document.getElementById('f-district').value = '';
+  document.getElementById('f-province').value = '';
   document.getElementById('f-price').value = '';
   document.getElementById('f-area-rai').value = '';
   document.getElementById('f-area-ngan').value = '';
@@ -1184,6 +1193,8 @@ async function startEdit(id){
   document.getElementById('f-phone').value = r.phone || '';
   document.getElementById('f-social').value = r.social || '';
   document.getElementById('f-deed').value = r.deed || '';
+  document.getElementById('f-district').value = r.district || '';
+  document.getElementById('f-province').value = r.province || '';
   document.getElementById('f-price').value = r.price ? Number(String(r.price).replace(/[^\d]/g, '')).toLocaleString('en-US') : '';
   document.getElementById('f-area-rai').value = r.areaRai || '';
   document.getElementById('f-area-ngan').value = r.areaNgan || '';
@@ -1522,6 +1533,8 @@ function exportToExcel(){
     'เบอร์โทร': r.phone || '',
     'ไลน์ / เฟสบุ๊ค': r.social || '',
     'หมายเลขโฉนด': r.deed || '',
+    'อำเภอ': r.district || '',
+    'จังหวัด': r.province || '',
     'ราคา (บาท)': r.price ? Number(String(r.price).replace(/[, ]/g, '')) || r.price : '',
     'เนื้อที่ (ไร่-งาน-ตารางวา)': formatArea(r) || '',
     'พิกัด / สถานที่': r.coords || '',
@@ -1535,7 +1548,7 @@ function exportToExcel(){
 
   const ws = XLSX.utils.json_to_sheet(rows);
   ws['!cols'] = [
-    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
+    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
     { wch: 14 }, { wch: 20 }, { wch: 22 }, { wch: 36 }, { wch: 12 }, { wch: 12 },
     { wch: 30 }, { wch: 18 }, { wch: 18 }
   ];
@@ -1553,6 +1566,8 @@ const FIELD_ALIASES = {
   phone: ['เบอร์โทร', 'โทรศัพท์', 'เบอร์โทรศัพท์', 'เบอร์', 'phone', 'tel'],
   social: ['ไลน์ / เฟสบุ๊ค', 'ไลน์/เฟสบุ๊ค', 'ไลน์', 'เฟสบุ๊ค', 'line', 'facebook', 'social'],
   deed: ['หมายเลขโฉนด', 'เลขโฉนด', 'โฉนด', 'deed'],
+  district: ['อำเภอ', 'เขต', 'district'],
+  province: ['จังหวัด', 'province'],
   price: ['ราคา (บาท)', 'ราคา', 'price'],
   area: ['เนื้อที่ (ไร่-งาน-ตารางวา)', 'เนื้อที่', 'area'],
   coords: ['พิกัด / สถานที่', 'พิกัด/สถานที่', 'พิกัด', 'ที่ตั้ง', 'coords', 'location'],
@@ -1615,6 +1630,8 @@ function importFromExcel(file){
           phone: String(getField(row, FIELD_ALIASES.phone) || '').trim(),
           social: String(getField(row, FIELD_ALIASES.social) || '').trim(),
           deed: String(getField(row, FIELD_ALIASES.deed) || '').trim(),
+          district: String(getField(row, FIELD_ALIASES.district) || '').trim(),
+          province: String(getField(row, FIELD_ALIASES.province) || '').trim(),
           price,
           areaRai: area.rai,
           areaNgan: area.ngan,
@@ -1855,6 +1872,8 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
     phone: document.getElementById('f-phone').value.trim(),
     social: document.getElementById('f-social').value.trim(),
     deed: document.getElementById('f-deed').value.trim(),
+    district: document.getElementById('f-district').value.trim(),
+    province: document.getElementById('f-province').value.trim(),
     price: document.getElementById('f-price').value.trim(),
     areaRai: document.getElementById('f-area-rai').value.trim(),
     areaNgan: document.getElementById('f-area-ngan').value.trim(),
