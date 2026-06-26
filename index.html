@@ -923,6 +923,8 @@
      (ขึ้นต้นด้วย "AIzaSy" เสมอ — ถ้าค่าที่จะวางขึ้นต้นแบบนี้ แสดงว่าหยิบมาผิดอัน)
    ================================================== */
 const GOOGLE_CLIENT_ID = '203310648822-st6pfgi8f8mdpgjcdvvue0mkgf6nr459.apps.googleusercontent.com';
+/* อีเมล Google Drive ที่จะเชื่อมต่ออัตโนมัติเมื่อผู้ใช้ล็อกอิน */
+const DRIVE_OWNER_EMAIL = 'ibeephoto87@gmail.com';
 const LINE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbyjNi2QVWsZIIVZGe6jT7cKRJTPJHPDskujhG17CIO7Ox_jxxmZyTJi7wU5zgYWJbt3/exec';
 
 /* ====== ตั้งค่าอีเมลที่อนุญาต (จำกัดการเข้าถึง) ======
@@ -1787,6 +1789,7 @@ function initDriveAuth(){
   driveTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: 'https://www.googleapis.com/auth/drive.file',
+    login_hint: DRIVE_OWNER_EMAIL,
     callback: (response) => {
       if(response && response.access_token){
         driveAccessToken = response.access_token;
@@ -2027,6 +2030,15 @@ function isEmailAllowed(email) {
 function showApp() {
   document.getElementById('login-overlay').classList.add('hidden');
   document.getElementById('user-badge').classList.remove('hidden');
+  // เชื่อมต่อ Google Drive อัตโนมัติหลังล็อกอิน
+  setTimeout(() => {
+    if(!driveAccessToken){
+      if(!driveTokenClient){ initDriveAuth(); }
+      if(driveTokenClient){
+        driveTokenClient.requestAccessToken({ prompt: '' });
+      }
+    }
+  }, 800);
 }
 
 function hideApp() {
