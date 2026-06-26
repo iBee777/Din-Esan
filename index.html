@@ -601,6 +601,84 @@
   }
 </style>
 </head>
+<style>
+  /* ===== Login Overlay ===== */
+  #login-overlay {
+    position: fixed; inset: 0;
+    background: rgba(46,42,34,0.82);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #login-overlay.hidden { display: none; }
+  .login-box {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 36px 40px 32px;
+    max-width: 360px; width: 90%;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+  }
+  .login-box .login-logo {
+    width: 72px; height: 72px; border-radius: 50%; margin: 0 auto 18px; overflow: hidden;
+    background: var(--paper); border: 2px solid var(--gold);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .login-box .login-logo img { width: 100%; height: 100%; object-fit: cover; }
+  .login-box h2 { margin: 0 0 6px; font-size: 19px; color: var(--pine-dark); }
+  .login-box p { margin: 0 0 24px; font-size: 13.5px; color: var(--ink-soft); }
+  .login-error {
+    color: var(--danger); font-size: 13px; margin-top: 12px;
+    min-height: 18px;
+  }
+  #google-signin-btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: #fff; color: #3c4043;
+    border: 1px solid #dadce0;
+    border-radius: 8px; padding: 10px 20px;
+    font-family: inherit; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: box-shadow .15s, background .15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.10);
+  }
+  #google-signin-btn:hover { background: #f8f8f8; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+  #google-signin-btn svg { flex-shrink: 0; }
+  #user-badge {
+    position: fixed; top: 12px; right: 16px; z-index: 1000;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 24px; padding: 5px 12px 5px 6px;
+    font-size: 13px; color: var(--ink-soft);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+  }
+  #user-badge.hidden { display: none; }
+  #user-badge img { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+  #logout-btn {
+    background: none; border: none; color: var(--clay-dark);
+    font-size: 12px; cursor: pointer; text-decoration: underline;
+    padding: 0; font-family: inherit;
+  }
+</style>
+
+<div id="login-overlay">
+  <div class="login-box">
+    <div class="login-logo"><img src="logo.png" alt="logo" onerror="this.style.display='none'"></div>
+    <h2>ระบบบันทึกลูกค้าฝากขายที่ดิน</h2>
+    <p>กรุณาเข้าสู่ระบบด้วยบัญชี Google ที่ได้รับอนุญาต</p>
+    <button id="google-signin-btn" type="button">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/><path fill="none" d="M0 0h48v48H0z"/></svg>
+      เข้าสู่ระบบด้วย Google
+    </button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<div id="user-badge" class="hidden">
+  <img id="user-avatar" src="" alt="">
+  <span id="user-name"></span>
+  <button id="logout-btn" type="button">ออกจากระบบ</button>
+</div>
+
 <body>
 <div class="wrap">
 
@@ -846,6 +924,15 @@
    ================================================== */
 const GOOGLE_CLIENT_ID = '203310648822-st6pfgi8f8mdpgjcdvvue0mkgf6nr459.apps.googleusercontent.com';
 const LINE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbyjNi2QVWsZIIVZGe6jT7cKRJTPJHPDskujhG17CIO7Ox_jxxmZyTJi7wU5zgYWJbt3/exec';
+
+/* ====== ตั้งค่าอีเมลที่อนุญาต (จำกัดการเข้าถึง) ======
+   ใส่อีเมล Google ที่อนุญาตให้เข้าใช้งานระบบ
+   ถ้าต้องการอนุญาตทุกคนให้เว้นว่างไว้: const ALLOWED_EMAILS = [];
+   ================================================== */
+const ALLOWED_EMAILS = [
+  // 'youremail@gmail.com',
+  // 'colleague@gmail.com',
+];
 function isDriveConfigured(){
   if(!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.indexOf('YOUR_CLIENT_ID_HERE') !== -1) return false;
   // รูปแบบ Client ID ที่ถูกต้องคือ "<ตัวเลข>-<ตัวอักษร/ตัวเลข>.apps.googleusercontent.com"
@@ -1926,6 +2013,78 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
   stopEdit();
   render();
 });
+
+// ===== ระบบล็อกอิน Google =====
+let currentUser = null;
+
+function isEmailAllowed(email) {
+  if (!ALLOWED_EMAILS || ALLOWED_EMAILS.length === 0) return true;
+  return ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase());
+}
+
+function showApp() {
+  document.getElementById('login-overlay').classList.add('hidden');
+  document.getElementById('user-badge').classList.remove('hidden');
+}
+
+function hideApp() {
+  document.getElementById('login-overlay').classList.remove('hidden');
+  document.getElementById('user-badge').classList.add('hidden');
+}
+
+function handleGoogleCredential(response) {
+  try {
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    const email = payload.email;
+    const name = payload.name || email;
+    const picture = payload.picture || '';
+
+    if (!isEmailAllowed(email)) {
+      document.getElementById('login-error').textContent =
+        `อีเมล ${email} ไม่ได้รับอนุญาต กรุณาติดต่อผู้ดูแลระบบ`;
+      return;
+    }
+
+    currentUser = { email, name, picture };
+    document.getElementById('user-name').textContent = name;
+    document.getElementById('user-avatar').src = picture;
+    document.getElementById('login-error').textContent = '';
+    showApp();
+  } catch(e) {
+    document.getElementById('login-error').textContent = 'เกิดข้อผิดพลาด กรุณาลองใหม่';
+  }
+}
+
+function initGoogleLogin() {
+  if (typeof google === 'undefined' || !google.accounts) {
+    setTimeout(initGoogleLogin, 500);
+    return;
+  }
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false,
+    cancel_on_tap_outside: false,
+  });
+
+  document.getElementById('google-signin-btn').addEventListener('click', () => {
+    google.accounts.id.prompt();
+  });
+}
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+  currentUser = null;
+  if (typeof google !== 'undefined' && google.accounts) {
+    google.accounts.id.disableAutoSelect();
+  }
+  hideApp();
+});
+
+window.addEventListener('load', () => {
+  setTimeout(initGoogleLogin, 400);
+});
+// ===== จบระบบล็อกอิน =====
+
 
 async function init(){
   await loadLastBackupDate();
