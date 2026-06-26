@@ -502,10 +502,94 @@
     vertical-align: middle;
   }
 
+  #import-excel-input{ display:none; }
+
+  /* ===== Appointment calendar ===== */
+  .calendar-header{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom: 12px;
+  }
+  .calendar-nav-btn{
+    border:1px solid var(--line); background:var(--paper); border-radius:6px;
+    width:32px; height:32px; cursor:pointer; font-size:16px; color:var(--ink-soft);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .calendar-nav-btn:hover{ background: var(--paper-dark); }
+  .calendar-month-label{ font-size:15px; font-weight:700; color:var(--pine-dark); }
+  .calendar-grid{
+    display:grid; grid-template-columns: repeat(7, 1fr); gap:4px;
+  }
+  .calendar-weekday{
+    text-align:center; font-size:11.5px; font-weight:700; color:var(--ink-soft); padding:4px 0;
+  }
+  .calendar-day{
+    position:relative;
+    min-height: 52px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background: var(--paper);
+    padding:4px 6px;
+    cursor:pointer;
+    font-size:12.5px;
+    color:var(--ink);
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .calendar-day:hover{ background: var(--paper-dark); }
+  .calendar-day.empty{ visibility:hidden; pointer-events:none; }
+  .calendar-day.today{ border-color: var(--pine); border-width:2px; }
+  .calendar-day.selected{ background: var(--pine); color:#fff; }
+  .calendar-day.selected .calendar-day-num{ color:#fff; }
+  .calendar-day-num{ font-weight:700; }
+  .calendar-day-dot{
+    display:flex; align-items:center; gap:3px;
+    font-size:10px;
+    background: var(--clay);
+    color:#fff;
+    border-radius:8px;
+    padding:1px 5px;
+    align-self:flex-start;
+  }
+  .calendar-day.selected .calendar-day-dot{ background: rgba(255,255,255,0.3); }
+
+  .appt-list{ margin-top:18px; }
+  .appt-list-title{ font-size:13.5px; font-weight:700; color:var(--pine-dark); margin-bottom:8px; }
+  .appt-item{
+    background: var(--card);
+    border:1px solid var(--line);
+    border-left: 4px solid var(--pine);
+    border-radius:8px;
+    padding:10px 14px;
+    margin-bottom:8px;
+    display:flex; justify-content:space-between; align-items:flex-start; gap:10px;
+  }
+  .appt-item .appt-time{ font-weight:700; color:var(--pine-dark); font-size:13.5px; }
+  .appt-item .appt-customer{ font-weight:600; }
+  .appt-item .appt-meta{ font-size:12.5px; color:var(--ink-soft); margin-top:2px; }
+  .appt-item .appt-actions{ display:flex; gap:6px; flex-shrink:0; }
+  .appt-empty{ font-size:13px; color:var(--ink-soft); padding:8px 0; }
+
+  .appt-form-row{
+    display:flex; gap:10px; flex-wrap:wrap; margin-top:16px; align-items:flex-end;
+    border-top:1px dashed var(--line); padding-top:16px;
+  }
+  .appt-form-row .field{ flex:1; min-width:130px; }
+  .appt-form-row select{
+    border: 1px solid var(--line);
+    background: var(--paper);
+    border-radius: 6px;
+    padding: 9px 11px;
+    font-family: inherit;
+    font-size: 14px;
+    color: var(--ink);
+    outline: none;
+  }
+
   @media (max-width: 620px){
     .form-grid{ grid-template-columns: 1fr; }
     .record{ grid-template-columns: 1fr; }
     .record-actions{ flex-direction:row; }
+    .calendar-day{ min-height: 40px; padding: 3px 4px; font-size: 11px; }
+    .calendar-day-dot{ font-size: 9px; padding: 1px 4px; }
   }
 </style>
 </head>
@@ -566,7 +650,7 @@
             </div>
           </div>
         </div>
-        <div class="field">
+        <div class="field full">
           <label>พิกัด</label>
           <input type="text" id="f-coords" placeholder="เช่น 17.1664, 104.1486 หรือชื่อสถานที่">
         </div>
@@ -618,13 +702,65 @@
     </form>
   </div>
 
+  <div class="card calendar-card">
+    <h2>ปฏิทินนัดหมายดูพื้นที่</h2>
+    <div class="calendar-header">
+      <button type="button" class="calendar-nav-btn" id="cal-prev">‹</button>
+      <span class="calendar-month-label" id="cal-month-label"></span>
+      <button type="button" class="calendar-nav-btn" id="cal-next">›</button>
+    </div>
+    <div class="calendar-grid" style="margin-bottom:4px;">
+      <div class="calendar-weekday">อา</div>
+      <div class="calendar-weekday">จ</div>
+      <div class="calendar-weekday">อ</div>
+      <div class="calendar-weekday">พ</div>
+      <div class="calendar-weekday">พฤ</div>
+      <div class="calendar-weekday">ศ</div>
+      <div class="calendar-weekday">ส</div>
+    </div>
+    <div class="calendar-grid" id="cal-grid"></div>
+
+    <div class="appt-list">
+      <div class="appt-list-title" id="appt-list-title">นัดหมายวันนี้</div>
+      <div id="appt-list-area"></div>
+    </div>
+
+    <form id="appt-form" class="appt-form-row">
+      <div class="field">
+        <label>ลูกค้า</label>
+        <select id="appt-customer"></select>
+      </div>
+      <div class="field">
+        <label>วันที่ <span class="req">*</span></label>
+        <input type="date" id="appt-date" required>
+      </div>
+      <div class="field">
+        <label>เวลา</label>
+        <input type="time" id="appt-time">
+      </div>
+      <div class="field" style="flex:2; min-width:200px;">
+        <label>สถานที่ / พิกัด</label>
+        <input type="text" id="appt-location" placeholder="ดึงจากข้อมูลลูกค้าอัตโนมัติถ้าเลือกไว้">
+      </div>
+      <div class="field" style="flex:2; min-width:200px;">
+        <label>หมายเหตุนัดหมาย</label>
+        <input type="text" id="appt-notes" placeholder="เช่น นัดดูที่ดินแปลงที่ 2">
+      </div>
+      <div class="field" style="flex: 0 0 auto;">
+        <button type="submit" class="btn btn-primary btn-sm">เพิ่มนัดหมาย</button>
+      </div>
+    </form>
+  </div>
+
   <div id="backup-banner-area"></div>
 
   <div class="backup-bar">
     <button type="button" class="btn btn-primary btn-sm" id="backup-btn">สำรองข้อมูล (ดาวน์โหลดไฟล์)</button>
     <button type="button" class="btn btn-ghost btn-sm" id="import-btn">นำเข้าไฟล์สำรอง</button>
     <button type="button" class="btn btn-ghost btn-sm" id="export-excel-btn">ส่งออกเป็น Excel</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="import-excel-btn">นำเข้าจาก Excel</button>
     <input type="file" id="import-input" accept="application/json">
+    <input type="file" id="import-excel-input" accept=".xlsx,.xls">
     <span class="last-backup" id="last-backup-label"></span>
   </div>
 
@@ -685,10 +821,24 @@
         (ต้องเป็น http:// หรือ https:// เท่านั้น เปิดจากไฟล์ในเครื่องตรงๆ (file://) จะใช้ไม่ได้
          ต้องอัปโหลดไฟล์นี้ขึ้นที่ใดที่หนึ่งก่อน เช่น GitHub Pages, Netlify หรือเว็บโฮสติ้งของคุณ)
    4. คัดลอก "Client ID" ที่ได้มาวางแทนข้อความด้านล่างนี้
-   ================================================== */
-const GOOGLE_CLIENT_ID = 'AIzaSyCt0x4hFdOce38TuTlEQSxuQE9gKQXrLC0.apps.googleusercontent.com';
 
-const STORAGE_KEY = 'land_client_records';
+   ข้อควรระวัง: ต้องใช้ "Client ID" เท่านั้น ห้ามใช้ "API key"
+   - Client ID หน้าตาแบบนี้:  116945574846-ab12cd34ef56gh78.apps.googleusercontent.com
+     (ตัวเลข ขีด แล้วตามด้วยตัวอักษร/ตัวเลขผสมกัน)
+   - API key หน้าตาแบบนี้:    AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+     (ขึ้นต้นด้วย "AIzaSy" เสมอ — ถ้าค่าที่จะวางขึ้นต้นแบบนี้ แสดงว่าหยิบมาผิดอัน)
+   ================================================== */
+const GOOGLE_CLIENT_ID = 'YOUR_CLIENT_ID_HERE.apps.googleusercontent.com';
+
+function isDriveConfigured(){
+  if(!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID.indexOf('YOUR_CLIENT_ID_HERE') !== -1) return false;
+  // รูปแบบ Client ID ที่ถูกต้องคือ "<ตัวเลข>-<ตัวอักษร/ตัวเลข>.apps.googleusercontent.com"
+  const looksLikeValidClientId = /^\d+-[0-9A-Za-z_-]+\.apps\.googleusercontent\.com$/.test(GOOGLE_CLIENT_ID);
+  if(!looksLikeValidClientId){
+    console.error('GOOGLE_CLIENT_ID ดูเหมือนไม่ใช่ Client ID ที่ถูกต้อง (ค่าปัจจุบัน: ' + GOOGLE_CLIENT_ID + ') — ตรวจสอบว่าหยิบมาจาก Google Cloud Console > Credentials > OAuth client ID ไม่ใช่ API key');
+  }
+  return looksLikeValidClientId;
+}
 let records = [];
 let editingId = null;
 
@@ -930,6 +1080,7 @@ function render(){
   document.getElementById('count-pill').textContent = filtered.length + ' รายการ' +
     (q && filtered.length !== records.length ? ` (จากทั้งหมด ${records.length})` : '');
   renderBackupUi();
+  if(typeof populateCustomerSelect === 'function') populateCustomerSelect();
 
   const area = document.getElementById('list-area');
 
@@ -1087,6 +1238,176 @@ async function deleteRecord(id){
   render();
 }
 
+/* ===== Appointment calendar (นัดหมายดูพื้นที่) ===== */
+const APPT_STORAGE_KEY = 'land_client_appointments';
+let appointments = [];
+let calendarViewDate = new Date();
+let selectedCalDate = todayStr();
+
+async function loadAppointments(){
+  try{
+    const res = await window.storage.get(APPT_STORAGE_KEY, false);
+    appointments = res && res.value ? JSON.parse(res.value) : [];
+  }catch(e){
+    appointments = [];
+  }
+}
+
+async function saveAppointments(){
+  try{
+    await window.storage.set(APPT_STORAGE_KEY, JSON.stringify(appointments), false);
+  }catch(e){
+    console.error('บันทึกนัดหมายไม่สำเร็จ', e);
+    alert('เกิดข้อผิดพลาดในการบันทึกนัดหมาย');
+  }
+}
+
+function apptDateKey(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function populateCustomerSelect(){
+  const sel = document.getElementById('appt-customer');
+  const current = sel.value;
+  const sorted = [...records].sort((a, b) =>
+    (a.firstname + a.lastname).localeCompare(b.firstname + b.lastname, 'th'));
+  sel.innerHTML = '<option value="">— ไม่ระบุ / อื่นๆ —</option>' +
+    sorted.map(r => `<option value="${r.id}">${escapeHtml(r.firstname)} ${escapeHtml(r.lastname)}${r.deed ? ' (โฉนด ' + escapeHtml(r.deed) + ')' : ''}</option>`).join('');
+  if(current && sorted.some(r => r.id === current)) sel.value = current;
+}
+
+document.getElementById('appt-customer').addEventListener('change', (e) => {
+  const id = e.target.value;
+  const r = records.find(x => x.id === id);
+  if(r && r.coords){
+    document.getElementById('appt-location').value = r.coords;
+  }
+});
+
+function renderCalendar(){
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  document.getElementById('cal-month-label').textContent =
+    calendarViewDate.toLocaleDateString('th-TH', { year: 'numeric', month: 'long' });
+
+  const firstDay = new Date(year, month, 1);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const apptCountByDate = {};
+  appointments.forEach(a => {
+    apptCountByDate[a.date] = (apptCountByDate[a.date] || 0) + 1;
+  });
+
+  const todayKey = todayStr();
+  let html = '';
+  for(let i = 0; i < startWeekday; i++){
+    html += `<div class="calendar-day empty"></div>`;
+  }
+  for(let day = 1; day <= daysInMonth; day++){
+    const dateObj = new Date(year, month, day);
+    const key = apptDateKey(dateObj);
+    const count = apptCountByDate[key] || 0;
+    const classes = ['calendar-day'];
+    if(key === todayKey) classes.push('today');
+    if(key === selectedCalDate) classes.push('selected');
+    html += `<div class="${classes.join(' ')}" onclick="selectCalDate('${key}')">
+      <span class="calendar-day-num">${day}</span>
+      ${count ? `<span class="calendar-day-dot">${count} นัด</span>` : ''}
+    </div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+  renderApptListForSelected();
+}
+
+function selectCalDate(key){
+  selectedCalDate = key;
+  document.getElementById('appt-date').value = key;
+  renderCalendar();
+}
+
+function renderApptListForSelected(){
+  const list = appointments
+    .filter(a => a.date === selectedCalDate)
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+  const titleEl = document.getElementById('appt-list-title');
+  const dateLabel = new Date(selectedCalDate + 'T00:00:00')
+    .toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  titleEl.textContent = selectedCalDate === todayStr() ? `นัดหมายวันนี้ (${dateLabel})` : `นัดหมายวันที่ ${dateLabel}`;
+
+  const area = document.getElementById('appt-list-area');
+  if(!list.length){
+    area.innerHTML = `<div class="appt-empty">ไม่มีนัดหมายในวันนี้</div>`;
+    return;
+  }
+
+  area.innerHTML = list.map(a => {
+    const mapUrl = mapLinkFor(a.location);
+    return `<div class="appt-item">
+      <div>
+        <div><span class="appt-time">${a.time ? escapeHtml(a.time) + ' น.' : 'ไม่ระบุเวลา'}</span> — <span class="appt-customer">${escapeHtml(a.customerName || 'ไม่ระบุลูกค้า')}</span></div>
+        ${a.location ? `<div class="appt-meta">สถานที่: ${escapeHtml(a.location)}${mapUrl ? ` &nbsp;<button type="button" class="icon-btn map-btn" style="display:inline-flex; width:auto; height:auto; padding:2px 8px; font-size:11.5px;" data-coords="${escapeHtml(a.location)}" onclick="openMap(this.dataset.coords)">แผนที่</button>` : ''}</div>` : ''}
+        ${a.notes ? `<div class="appt-meta">${escapeHtml(a.notes)}</div>` : ''}
+      </div>
+      <div class="appt-actions">
+        <button type="button" class="icon-btn danger" title="ลบนัดหมาย" onclick="deleteAppointment('${a.id}')">ลบ</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteAppointment(id){
+  if(!confirm('ต้องการลบนัดหมายนี้หรือไม่?')) return;
+  appointments = appointments.filter(a => a.id !== id);
+  await saveAppointments();
+  renderCalendar();
+}
+
+document.getElementById('cal-prev').addEventListener('click', () => {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
+  renderCalendar();
+});
+document.getElementById('cal-next').addEventListener('click', () => {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1, 1);
+  renderCalendar();
+});
+
+document.getElementById('appt-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const date = document.getElementById('appt-date').value;
+  if(!date){
+    alert('กรุณาเลือกวันที่นัดหมาย');
+    return;
+  }
+  const customerId = document.getElementById('appt-customer').value;
+  const customer = records.find(r => r.id === customerId);
+  const appt = {
+    id: genId(),
+    customerId: customerId || '',
+    customerName: customer ? `${customer.firstname} ${customer.lastname}` : '',
+    date,
+    time: document.getElementById('appt-time').value,
+    location: document.getElementById('appt-location').value.trim(),
+    notes: document.getElementById('appt-notes').value.trim(),
+    createdAt: Date.now()
+  };
+  appointments.push(appt);
+  await saveAppointments();
+
+  document.getElementById('appt-time').value = '';
+  document.getElementById('appt-location').value = '';
+  document.getElementById('appt-notes').value = '';
+  document.getElementById('appt-customer').value = '';
+
+  selectedCalDate = date;
+  calendarViewDate = new Date(date + 'T00:00:00');
+  renderCalendar();
+});
+
 const BACKUP_DATE_KEY = 'land_client_last_backup_date';
 let lastBackupDate = null;
 
@@ -1213,7 +1534,112 @@ function exportToExcel(){
   XLSX.writeFile(wb, `land-clients-${stamp}.xlsx`);
 }
 
-/* ===== Google Drive integration ===== */
+/* ===== Import from Excel ===== */
+const FIELD_ALIASES = {
+  firstname: ['ชื่อ', 'first name', 'firstname'],
+  lastname: ['นามสกุล', 'last name', 'lastname'],
+  phone: ['เบอร์โทร', 'โทรศัพท์', 'เบอร์โทรศัพท์', 'เบอร์', 'phone', 'tel'],
+  social: ['ไลน์ / เฟสบุ๊ค', 'ไลน์/เฟสบุ๊ค', 'ไลน์', 'เฟสบุ๊ค', 'line', 'facebook', 'social'],
+  deed: ['หมายเลขโฉนด', 'เลขโฉนด', 'โฉนด', 'deed'],
+  price: ['ราคา (บาท)', 'ราคา', 'price'],
+  area: ['เนื้อที่ (ไร่-งาน-ตารางวา)', 'เนื้อที่', 'area'],
+  coords: ['พิกัด / สถานที่', 'พิกัด/สถานที่', 'พิกัด', 'ที่ตั้ง', 'coords', 'location'],
+  notes: ['หมายเหตุ', 'note', 'notes']
+};
+
+function getField(row, aliases){
+  const keys = Object.keys(row);
+  for(const alias of aliases){
+    const found = keys.find(k => k.trim().toLowerCase() === alias.trim().toLowerCase());
+    if(found !== undefined && row[found] !== undefined) return row[found];
+  }
+  return '';
+}
+
+function parseAreaString(str){
+  if(!str) return { rai: '', ngan: '', wah: '' };
+  const s = String(str);
+  const rai = (s.match(/([\d.]+)\s*ไร่/) || [])[1] || '';
+  const ngan = (s.match(/([\d.]+)\s*งาน/) || [])[1] || '';
+  const wah = (s.match(/([\d.]+)\s*ตารางวา/) || [])[1] || '';
+  return { rai, ngan, wah };
+}
+
+function importFromExcel(file){
+  if(typeof XLSX === 'undefined'){
+    alert('ไม่สามารถโหลดไลบรารี Excel ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const wsName = wb.SheetNames[0];
+      const ws = wb.Sheets[wsName];
+      const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+      if(!rows.length){
+        alert('ไม่พบข้อมูลในไฟล์ Excel นี้');
+        return;
+      }
+
+      let added = 0, skipped = 0;
+      for(const row of rows){
+        const firstname = String(getField(row, FIELD_ALIASES.firstname) || '').trim();
+        const lastname = String(getField(row, FIELD_ALIASES.lastname) || '').trim();
+        if(!firstname && !lastname){ skipped++; continue; }
+
+        const priceRaw = getField(row, FIELD_ALIASES.price);
+        const priceNum = Number(String(priceRaw).replace(/[, ]/g, ''));
+        const price = priceRaw !== '' && !isNaN(priceNum) && priceNum > 0 ? priceNum.toLocaleString('en-US') : '';
+
+        const area = parseAreaString(getField(row, FIELD_ALIASES.area));
+
+        records.push({
+          id: genId(),
+          firstname,
+          lastname,
+          phone: String(getField(row, FIELD_ALIASES.phone) || '').trim(),
+          social: String(getField(row, FIELD_ALIASES.social) || '').trim(),
+          deed: String(getField(row, FIELD_ALIASES.deed) || '').trim(),
+          price,
+          areaRai: area.rai,
+          areaNgan: area.ngan,
+          areaWah: area.wah,
+          coords: String(getField(row, FIELD_ALIASES.coords) || '').trim(),
+          notes: String(getField(row, FIELD_ALIASES.notes) || '').trim(),
+          marketing: false,
+          marketingCost: '',
+          hasFront: false,
+          hasBack: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+        added++;
+      }
+
+      await saveRecords();
+      render();
+      alert(`นำเข้าข้อมูลจาก Excel สำเร็จ: เพิ่ม ${added} รายการ${skipped ? `, ข้าม ${skipped} แถวที่ไม่มีชื่อ` : ''}`);
+    }catch(err){
+      console.error('Excel import error', err);
+      alert('ไม่สามารถอ่านไฟล์ Excel นี้ได้ กรุณาตรวจสอบรูปแบบไฟล์ (ควรมีคอลัมน์ ชื่อ, นามสกุล เป็นอย่างน้อย)');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+document.getElementById('import-excel-btn').addEventListener('click', () => {
+  document.getElementById('import-excel-input').click();
+});
+document.getElementById('import-excel-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if(file) importFromExcel(file);
+  e.target.value = '';
+});
+
+
 let driveTokenClient = null;
 let driveAccessToken = null;
 let driveUploadRequested = false;
@@ -1472,7 +1898,10 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
 
 async function init(){
   await loadLastBackupDate();
+  await loadAppointments();
+  document.getElementById('appt-date').value = selectedCalDate;
   await loadRecords();
+  renderCalendar();
 }
 init();
 </script>
