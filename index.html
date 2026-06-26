@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ระบบบันทึกลูกค้าฝากขายที่ดิน</title>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap');
 
@@ -416,15 +417,17 @@
           <input type="text" id="f-deed" placeholder="เช่น 12345">
         </div>
         <div class="field">
+          <label>ราคา (บาท)</label>
+          <input type="text" id="f-price" inputmode="numeric" placeholder="เช่น 1,500,000">
+        </div>
+        <div class="field">
           <label>พิกัด</label>
-          <input type="text" id="f-coords" placeholder="เช่น 17.1664, 104.1486">
+          <input type="text" id="f-coords" placeholder="เช่น 17.1664, 104.1486 หรือชื่อสถานที่">
         </div>
         <div class="field img-field">
           <label>รูปโฉนด (หน้า)</label>
           <div class="img-row">
             <div id="front-preview"><div class="img-placeholder">ไม่มีรูป</div></div>
-            <label class="file-label" for="f-deed-front-camera"><i class="cam-icon">&#128247;</i> ถ่ายภาพ</label>
-            <input type="file" id="f-deed-front-camera" accept="image/*" capture="environment" data-side="front">
             <label class="file-label" for="f-deed-front-gallery">เลือกจากคลังภาพ</label>
             <input type="file" id="f-deed-front-gallery" accept="image/*" data-side="front">
             <button type="button" class="img-remove-btn" id="front-remove-btn" style="display:none;">ลบรูป</button>
@@ -434,8 +437,6 @@
           <label>รูปโฉนด (หลัง)</label>
           <div class="img-row">
             <div id="back-preview"><div class="img-placeholder">ไม่มีรูป</div></div>
-            <label class="file-label" for="f-deed-back-camera"><i class="cam-icon">&#128247;</i> ถ่ายภาพ</label>
-            <input type="file" id="f-deed-back-camera" accept="image/*" capture="environment" data-side="back">
             <label class="file-label" for="f-deed-back-gallery">เลือกจากคลังภาพ</label>
             <input type="file" id="f-deed-back-gallery" accept="image/*" data-side="back">
             <button type="button" class="img-remove-btn" id="back-remove-btn" style="display:none;">ลบรูป</button>
@@ -458,6 +459,7 @@
   <div class="backup-bar">
     <button type="button" class="btn btn-primary btn-sm" id="backup-btn">สำรองข้อมูล (ดาวน์โหลดไฟล์)</button>
     <button type="button" class="btn btn-ghost btn-sm" id="import-btn">นำเข้าไฟล์สำรอง</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="export-excel-btn">ส่งออกเป็น Excel</button>
     <input type="file" id="import-input" accept="application/json">
     <span class="last-backup" id="last-backup-label"></span>
   </div>
@@ -605,9 +607,7 @@ async function handleImageInput(e){
   e.target.value = '';
 }
 
-document.getElementById('f-deed-front-camera').addEventListener('change', handleImageInput);
 document.getElementById('f-deed-front-gallery').addEventListener('change', handleImageInput);
-document.getElementById('f-deed-back-camera').addEventListener('change', handleImageInput);
 document.getElementById('f-deed-back-gallery').addEventListener('change', handleImageInput);
 
 document.getElementById('front-remove-btn').addEventListener('click', () => {
@@ -650,9 +650,14 @@ function formatDate(iso){
 function mapLinkFor(coords){
   if(!coords) return '';
   const cleaned = coords.trim();
-  const m = cleaned.match(/^-?\d+(\.\d+)?\s*,\s*-?\d+(\.\d+)?$/);
-  if(!m) return '';
+  if(!cleaned) return '';
   return `https://www.google.com/maps?q=${encodeURIComponent(cleaned)}`;
+}
+
+function formatPrice(price){
+  const n = Number(String(price).replace(/[, ]/g, ''));
+  if(!price || isNaN(n)) return '';
+  return n.toLocaleString('th-TH') + ' บาท';
 }
 
 function render(){
@@ -662,7 +667,8 @@ function render(){
     return (r.firstname + ' ' + r.lastname).toLowerCase().includes(q) ||
       (r.phone||'').toLowerCase().includes(q) ||
       (r.deed||'').toLowerCase().includes(q) ||
-      (r.social||'').toLowerCase().includes(q);
+      (r.social||'').toLowerCase().includes(q) ||
+      (String(r.price||'')).toLowerCase().includes(q);
   }).sort((a,b) => b.createdAt - a.createdAt);
 
   document.getElementById('count-pill').textContent = filtered.length + ' รายการ' +
@@ -687,13 +693,14 @@ function render(){
           ${r.phone ? `<span><b>โทร:</b> ${escapeHtml(r.phone)}</span>` : ''}
           ${r.social ? `<span><b>ไลน์/เฟสบุ๊ค:</b> ${escapeHtml(r.social)}</span>` : ''}
           ${r.deed ? `<span><b>โฉนดเลขที่:</b> ${escapeHtml(r.deed)}</span>` : ''}
+          ${r.price ? `<span><b>ราคา:</b> ${escapeHtml(formatPrice(r.price))}</span>` : ''}
           ${r.coords ? `<span><b>พิกัด:</b> ${escapeHtml(r.coords)}</span>` : ''}
         </div>
         ${r.notes ? `<div class="notes">${escapeHtml(r.notes)}</div>` : ''}
         <div class="date">บันทึกเมื่อ ${formatDate(r.createdAt)}${r.updatedAt && r.updatedAt !== r.createdAt ? ' · แก้ไขล่าสุด ' + formatDate(r.updatedAt) : ''}</div>
       </div>
       <div class="record-actions">
-        ${mapUrl ? `<button class="icon-btn map-btn" title="ดูแผนที่" onclick="window.open('${mapUrl}', '_blank')">แผนที่</button>` : ''}
+        ${mapUrl ? `<button class="icon-btn map-btn" title="เปิด Google Maps" onclick="window.open('${mapUrl}', '_blank')">Maps</button>` : ''}
         ${r.hasFront ? `<button class="icon-btn deed-btn" title="ดูรูปหน้าโฉนด" onclick="viewDeedImage('${r.id}','front')">หน้า</button>` : ''}
         ${r.hasBack ? `<button class="icon-btn deed-btn" title="ดูรูปหลังโฉนด" onclick="viewDeedImage('${r.id}','back')">หลัง</button>` : ''}
         <button class="icon-btn" title="แก้ไข" onclick="startEdit('${r.id}')">แก้ไข</button>
@@ -734,6 +741,7 @@ function clearForm(){
   document.getElementById('f-phone').value = '';
   document.getElementById('f-social').value = '';
   document.getElementById('f-deed').value = '';
+  document.getElementById('f-price').value = '';
   document.getElementById('f-coords').value = '';
   document.getElementById('f-notes').value = '';
   resetImageState();
@@ -748,6 +756,7 @@ async function startEdit(id){
   document.getElementById('f-phone').value = r.phone || '';
   document.getElementById('f-social').value = r.social || '';
   document.getElementById('f-deed').value = r.deed || '';
+  document.getElementById('f-price').value = r.price ? Number(String(r.price).replace(/[^\d]/g, '')).toLocaleString('en-US') : '';
   document.getElementById('f-coords').value = r.coords || '';
   document.getElementById('f-notes').value = r.notes || '';
 
@@ -885,6 +894,46 @@ async function downloadBackup(){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   setLastBackupDate(stamp).then(renderBackupUi);
+}
+
+function exportToExcel(){
+  if(!records.length){
+    alert('ยังไม่มีรายการลูกค้าให้ส่งออก');
+    return;
+  }
+  if(typeof XLSX === 'undefined'){
+    alert('ไม่สามารถโหลดไลบรารี Excel ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่');
+    return;
+  }
+
+  const sorted = [...records].sort((a,b) => b.createdAt - a.createdAt);
+  const rows = sorted.map(r => ({
+    'ชื่อ': r.firstname || '',
+    'นามสกุล': r.lastname || '',
+    'เบอร์โทร': r.phone || '',
+    'ไลน์ / เฟสบุ๊ค': r.social || '',
+    'หมายเลขโฉนด': r.deed || '',
+    'ราคา (บาท)': r.price ? Number(String(r.price).replace(/[, ]/g, '')) || r.price : '',
+    'พิกัด / สถานที่': r.coords || '',
+    'ลิงก์ Google Maps': mapLinkFor(r.coords) || '',
+    'มีรูปหน้าโฉนด': r.hasFront ? 'มี' : '',
+    'มีรูปหลังโฉนด': r.hasBack ? 'มี' : '',
+    'หมายเหตุ': r.notes || '',
+    'บันทึกเมื่อ': formatDate(r.createdAt),
+    'แก้ไขล่าสุด': r.updatedAt && r.updatedAt !== r.createdAt ? formatDate(r.updatedAt) : ''
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [
+    { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 }, { wch: 14 },
+    { wch: 14 }, { wch: 22 }, { wch: 36 }, { wch: 12 }, { wch: 12 },
+    { wch: 30 }, { wch: 18 }, { wch: 18 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ลูกค้าฝากขายที่ดิน');
+  const stamp = todayStr();
+  XLSX.writeFile(wb, `land-clients-${stamp}.xlsx`);
 }
 
 /* ===== Google Drive integration ===== */
@@ -1053,6 +1102,7 @@ function handleImportFile(file){
 }
 
 document.getElementById('backup-btn').addEventListener('click', downloadBackup);
+document.getElementById('export-excel-btn').addEventListener('click', exportToExcel);
 document.getElementById('import-btn').addEventListener('click', () => {
   document.getElementById('import-input').click();
 });
@@ -1064,6 +1114,16 @@ document.getElementById('import-input').addEventListener('change', (e) => {
 
 document.getElementById('cancel-btn').addEventListener('click', stopEdit);
 document.getElementById('search-box').addEventListener('input', render);
+
+document.getElementById('f-price').addEventListener('input', (e) => {
+  const input = e.target;
+  const cursorFromEnd = input.value.length - input.selectionStart;
+  const digitsOnly = input.value.replace(/[^\d]/g, '');
+  const formatted = digitsOnly ? Number(digitsOnly).toLocaleString('en-US') : '';
+  input.value = formatted;
+  const pos = Math.max(0, formatted.length - cursorFromEnd);
+  input.setSelectionRange(pos, pos);
+});
 
 document.getElementById('record-form').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -1080,6 +1140,7 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
     phone: document.getElementById('f-phone').value.trim(),
     social: document.getElementById('f-social').value.trim(),
     deed: document.getElementById('f-deed').value.trim(),
+    price: document.getElementById('f-price').value.trim(),
     coords: document.getElementById('f-coords').value.trim(),
     notes: document.getElementById('f-notes').value.trim(),
   };
