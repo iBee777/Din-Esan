@@ -831,6 +831,12 @@
         <label>หมายเหตุนัดหมาย</label>
         <input type="text" id="appt-notes" placeholder="เช่น นัดดูที่ดินแปลงที่ 2">
       </div>
+      <div class="field" style="flex: 0 0 auto; min-width:180px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-top:22px;">
+          <input type="checkbox" id="appt-google-calendar" checked style="width:20px; height:20px;">
+          ลง Google Calendar
+        </label>
+      </div>
       <div class="field" style="flex: 0 0 auto;">
         <button type="submit" class="btn btn-primary btn-sm">เพิ่มนัดหมาย</button>
       </div>
@@ -852,10 +858,10 @@
   <div class="drive-panel">
     <div class="drive-status">
       <span class="drive-dot" id="drive-dot"></span>
-      <span id="drive-status-text">ยังไม่เชื่อมต่อ Google Drive</span>
+      <span id="drive-status-text">ยังไม่เชื่อมต่อ Google Drive และ Calendar</span>
     </div>
     <div class="drive-actions">
-      <button type="button" class="btn btn-ghost btn-sm" id="drive-login-btn">เข้าสู่ระบบ Google</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="drive-login-btn">เชื่อมต่อ Google</button>
       <button type="button" class="btn btn-primary btn-sm" id="drive-upload-btn" style="display:none;">บันทึกขึ้น Google Drive</button>
       <button type="button" class="btn btn-ghost btn-sm" id="drive-load-btn" style="display:none;">โหลดข้อมูลจาก Drive</button>
     </div>
@@ -1020,9 +1026,9 @@
 })();
 /* ===== จบระบบจัดเก็บข้อมูล ===== */
 
-/* ====== ตั้งค่า Google Drive (ทำครั้งเดียว) ======
+/* ====== ตั้งค่า Google Drive + Google Calendar (ทำครั้งเดียว) ======
    1. ไปที่ https://console.cloud.google.com/ สร้างโปรเจกต์ใหม่ (หรือใช้โปรเจกต์เดิม)
-   2. เปิดใช้งาน "Google Drive API" ในเมนู APIs & Services > Library
+   2. เปิดใช้งาน "Google Drive API" และ "Google Calendar API" ในเมนู APIs & Services > Library
    3. ไปที่ APIs & Services > Credentials > Create Credentials > OAuth client ID
       - Application type: Web application
       - Authorized JavaScript origins: ใส่ URL ของหน้านี้ที่จะใช้งานจริง
@@ -1587,6 +1593,7 @@ function renderApptListForSelected(){
         <div><span class="appt-time">${a.time ? escapeHtml(a.time) + ' น.' : 'ไม่ระบุเวลา'}</span> — <span class="appt-customer">${escapeHtml(a.customerName || 'ไม่ระบุลูกค้า')}</span></div>
         ${a.location ? `<div class="appt-meta">สถานที่: ${escapeHtml(a.location)}${mapUrl ? ` &nbsp;<button type="button" class="icon-btn map-btn" style="display:inline-flex; width:auto; height:auto; padding:2px 8px; font-size:11.5px;" data-coords="${escapeHtml(a.location)}" onclick="openMap(this.dataset.coords)">แผนที่</button>` : ''}</div>` : ''}
         ${a.notes ? `<div class="appt-meta">${escapeHtml(a.notes)}</div>` : ''}
+        ${a.calendarHtmlLink ? `<div class="appt-meta"><a href="${escapeHtml(a.calendarHtmlLink)}" target="_blank" rel="noopener">เปิดใน Google Calendar</a></div>` : ''}
       </div>
       <div class="appt-actions">
         <button type="button" class="icon-btn danger" title="ลบนัดหมาย" onclick="deleteAppointment('${a.id}')">ลบ</button>
@@ -1595,8 +1602,71 @@ function renderApptListForSelected(){
   }).join('');
 }
 
+
+function calendarEventBodyFor(appt){
+  const title = appt.customerName ? `นัดดูพื้นที่ — ${appt.customerName}` : 'นัดดูพื้นที่';
+  const descriptionParts = [];
+  if(appt.notes) descriptionParts.push(appt.notes);
+  if(appt.customerId){
+    const r = records.find(x => x.id === appt.customerId);
+    if(r){
+      if(r.phone) descriptionParts.push(`โทร: ${r.phone}`);
+      if(r.deed) descriptionParts.push(`เลขโฉนด: ${r.deed}`);
+    }
+  }
+  const body = {
+    summary: title,
+    location: appt.location || '',
+    description: descriptionParts.join('\n'),
+  };
+  if(appt.time){
+    const start = new Date(`${appt.date}T${appt.time}:00+07:00`);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    body.start = {dateTime: start.toISOString(), timeZone: 'Asia/Bangkok'};
+    body.end = {dateTime: end.toISOString(), timeZone: 'Asia/Bangkok'};
+  }else{
+    const startDate = appt.date;
+    const d = new Date(`${appt.date}T00:00:00+07:00`);
+    d.setDate(d.getDate() + 1);
+    const endDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    body.start = {date: startDate};
+    body.end = {date: endDate};
+  }
+  return body;
+}
+
+async function createGoogleCalendarEvent(appt){
+  if(!driveAccessToken) throw new Error('กรุณาเชื่อมต่อ Google ก่อนลงคิว Calendar');
+  const res = await driveFetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(calendarEventBodyFor(appt))
+  });
+  if(!res.ok){
+    const detail = await res.text();
+    throw new Error('สร้างนัดหมายใน Google Calendar ไม่สำเร็จ: ' + detail);
+  }
+  return await res.json();
+}
+
+async function deleteGoogleCalendarEvent(eventId){
+  if(!eventId || !driveAccessToken) return false;
+  const res = await driveFetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=none`, {method:'DELETE'});
+  if(res.status === 404 || res.status === 410) return true;
+  if(!res.ok) throw new Error('ลบนัดหมายจาก Google Calendar ไม่สำเร็จ');
+  return true;
+}
+
 async function deleteAppointment(id){
   if(!confirm('ต้องการลบนัดหมายนี้หรือไม่?')) return;
+  const appt = appointments.find(a => a.id === id);
+  if(appt && appt.calendarEventId && driveAccessToken){
+    try{ await deleteGoogleCalendarEvent(appt.calendarEventId); }
+    catch(e){
+      console.error(e);
+      if(!confirm('ลบจาก Google Calendar ไม่สำเร็จ ต้องการลบเฉพาะในระบบนี้ต่อหรือไม่?')) return;
+    }
+  }
   appointments = appointments.filter(a => a.id !== id);
   await saveAppointments();
   renderCalendar();
@@ -1630,6 +1700,25 @@ document.getElementById('appt-form').addEventListener('submit', async (e) => {
     notes: document.getElementById('appt-notes').value.trim(),
     createdAt: Date.now()
   };
+  const addToGoogleCalendar = document.getElementById('appt-google-calendar').checked;
+  if(addToGoogleCalendar){
+    if(!driveAccessToken){
+      alert('กรุณากด “เชื่อมต่อ Google” ก่อน เพื่ออนุญาตให้ลงคิวใน Google Calendar');
+      requestDriveLogin();
+      return;
+    }
+    try{
+      const event = await createGoogleCalendarEvent(appt);
+      appt.calendarEventId = event.id || '';
+      appt.calendarHtmlLink = event.htmlLink || '';
+    }catch(err){
+      console.error('Calendar create error', err);
+      if(!confirm('ลงคิวใน Google Calendar ไม่สำเร็จ
+' + (err.message || '') + '
+
+ต้องการบันทึกเฉพาะในระบบนี้หรือไม่?')) return;
+    }
+  }
   appointments.push(appt);
   await saveAppointments();
 
@@ -1895,7 +1984,7 @@ function setDriveStatus(connected, message){
   text.textContent = message;
   document.getElementById('drive-upload-btn').style.display = connected ? 'inline-block' : 'none';
   document.getElementById('drive-load-btn').style.display = connected ? 'inline-block' : 'none';
-  document.getElementById('drive-login-btn').textContent = connected ? 'เปลี่ยนบัญชี Google' : 'เชื่อมต่อ Google Drive';
+  document.getElementById('drive-login-btn').textContent = connected ? 'เปลี่ยนบัญชี Google' : 'เชื่อมต่อ Google';
 }
 
 function initDriveAuth(){
@@ -1909,12 +1998,12 @@ function initDriveAuth(){
   }
   driveTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
-    scope: 'https://www.googleapis.com/auth/drive.file',
+    scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
     login_hint: currentUser && currentUser.email ? currentUser.email : DRIVE_OWNER_EMAIL,
     callback: async (response) => {
       if(response && response.access_token){
         driveAccessToken = response.access_token;
-        setDriveStatus(true, 'เชื่อมต่อแล้ว — รายการใหม่จะบันทึกขึ้น Drive อัตโนมัติ');
+        setDriveStatus(true, 'เชื่อมต่อแล้ว — บันทึก Drive และลงคิว Google Calendar ได้');
         if(driveUploadRequested){
           driveUploadRequested = false;
           await saveDatabaseToDrive(false);
@@ -1928,7 +2017,7 @@ function initDriveAuth(){
       setDriveStatus(false, 'หน้าต่าง Google ถูกปิดหรือถูกบล็อก');
     }
   });
-  setDriveStatus(false, 'กดเชื่อมต่อ Google Drive เพื่อบันทึกข้อมูลออนไลน์');
+  setDriveStatus(false, 'กดเชื่อมต่อ Google เพื่อใช้ Drive และ Calendar');
 }
 
 function requestDriveLogin(){
