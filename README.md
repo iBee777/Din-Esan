@@ -80,3 +80,6 @@ http://localhost:8000
 ├── .nojekyll
 └── .github/workflows/pages.yml
 ```
+
+## การแก้ปัญหาบันทึกข้อมูลบน iPhone
+เวอร์ชันนี้เก็บข้อมูลข้อความใน localStorage และเก็บรูปโฉนดใน IndexedDB เพื่อลดปัญหาพื้นที่ localStorage เต็มบน Safari/iPhone โดยรูปเดิมที่เคยอยู่ใน localStorage จะถูกย้ายเมื่อเปิดดูหรือแก้ไขรายการนั้น

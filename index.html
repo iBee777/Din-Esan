@@ -906,32 +906,113 @@
 </div>
 
 <script>
-/* ===== localStorage polyfill สำหรับ window.storage =====
-   แทนที่ window.storage (Claude Artifacts API) ด้วย localStorage
-   เพื่อให้ใช้งานได้ในเบราว์เซอร์ทั่วไป
+/* ===== ระบบจัดเก็บข้อมูลสำหรับเบราว์เซอร์ทั่วไป =====
+   - ข้อมูลข้อความเก็บใน localStorage
+   - รูปโฉนดเก็บใน IndexedDB เพื่อไม่ให้พื้นที่ localStorage เต็มบนมือถือ
 */
-if(!window.storage){
+(function(){
+  const DB_NAME = 'din-esan-db';
+  const DB_VERSION = 1;
+  const IMAGE_STORE = 'images';
+
+  function isImageKey(key){
+    return String(key || '').startsWith('deed_image:');
+  }
+
+  function openDb(){
+    return new Promise((resolve, reject) => {
+      if(!('indexedDB' in window)){
+        reject(new Error('เบราว์เซอร์นี้ไม่รองรับ IndexedDB'));
+        return;
+      }
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if(!db.objectStoreNames.contains(IMAGE_STORE)){
+          db.createObjectStore(IMAGE_STORE);
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('เปิดฐานข้อมูลรูปภาพไม่สำเร็จ'));
+    });
+  }
+
+  async function idbGet(key){
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IMAGE_STORE, 'readonly');
+      const req = tx.objectStore(IMAGE_STORE).get(key);
+      req.onsuccess = () => resolve(req.result ?? null);
+      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => db.close();
+    });
+  }
+
+  async function idbSet(key, value){
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IMAGE_STORE, 'readwrite');
+      tx.objectStore(IMAGE_STORE).put(value, key);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { const e = tx.error; db.close(); reject(e); };
+      tx.onabort = () => { const e = tx.error; db.close(); reject(e); };
+    });
+  }
+
+  async function idbDelete(key){
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IMAGE_STORE, 'readwrite');
+      tx.objectStore(IMAGE_STORE).delete(key);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { const e = tx.error; db.close(); reject(e); };
+    });
+  }
+
   window.storage = {
     get: async function(key, shared){
-      try{
-        const value = localStorage.getItem('ws:' + key);
+      if(isImageKey(key)){
+        let value = await idbGet(key);
+        // ย้ายรูปเดิมจาก localStorage ไป IndexedDB อัตโนมัติ
+        if(value === null){
+          const legacy = localStorage.getItem('ws:' + key);
+          if(legacy !== null){
+            try{
+              await idbSet(key, legacy);
+              localStorage.removeItem('ws:' + key);
+            }catch(e){}
+            value = legacy;
+          }
+        }
         if(value === null) throw new Error('Key not found: ' + key);
         return { key, value, shared: !!shared };
-      }catch(e){ throw e; }
+      }
+      const value = localStorage.getItem('ws:' + key);
+      if(value === null) throw new Error('Key not found: ' + key);
+      return { key, value, shared: !!shared };
     },
     set: async function(key, value, shared){
       try{
-        localStorage.setItem('ws:' + key, value);
+        if(isImageKey(key)){
+          await idbSet(key, value);
+        }else{
+          localStorage.setItem('ws:' + key, value);
+        }
         return { key, value, shared: !!shared };
       }catch(e){
-        if(e.name === 'QuotaExceededError'){
-          throw new Error('พื้นที่จัดเก็บเต็ม กรุณาลบข้อมูลเก่าหรือล้างรูปบางส่วนออกก่อน');
+        if(e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED')){
+          throw new Error('พื้นที่จัดเก็บเต็ม กรุณาลบข้อมูลหรือรูปภาพเก่าบางส่วนก่อน');
         }
         throw e;
       }
     },
     delete: async function(key, shared){
-      localStorage.removeItem('ws:' + key);
+      if(isImageKey(key)){
+        await idbDelete(key);
+        localStorage.removeItem('ws:' + key);
+      }else{
+        localStorage.removeItem('ws:' + key);
+      }
       return { key, deleted: true, shared: !!shared };
     },
     list: async function(prefix, shared){
@@ -944,8 +1025,8 @@ if(!window.storage){
       return { keys, prefix, shared: !!shared };
     }
   };
-}
-/* ===== จบ polyfill ===== */
+})();
+/* ===== จบระบบจัดเก็บข้อมูล ===== */
 
 /* ====== ตั้งค่า Google Drive (ทำครั้งเดียว) ======
    1. ไปที่ https://console.cloud.google.com/ สร้างโปรเจกต์ใหม่ (หรือใช้โปรเจกต์เดิม)
@@ -1057,9 +1138,11 @@ async function loadRecords(){
 async function saveRecords(){
   try{
     await window.storage.set(STORAGE_KEY, JSON.stringify(records), false);
+    return true;
   }catch(e){
     console.error('บันทึกข้อมูลไม่สำเร็จ', e);
-    alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่');
+    alert('บันทึกข้อมูลไม่สำเร็จ: ' + (e && e.message ? e.message : 'กรุณาลองใหม่'));
+    return false;
   }
 }
 
@@ -2022,6 +2105,7 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
   let hasFront = editingId ? (records.find(r => r.id === id)?.hasFront || false) : false;
   let hasBack = editingId ? (records.find(r => r.id === id)?.hasBack || false) : false;
 
+  try{
   if(pendingFrontImage){
     await window.storage.set(imageKey(id, 'front'), pendingFrontImage, false);
     hasFront = true;
@@ -2055,9 +2139,14 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
     });
   }
 
-  await saveRecords();
+  const saved = await saveRecords();
+  if(!saved) throw new Error('ไม่สามารถบันทึกรายการหลักได้');
   stopEdit();
   render();
+  }catch(err){
+    console.error('บันทึกรายการไม่สำเร็จ', err);
+    alert('บันทึกรายการไม่สำเร็จ: ' + (err && err.message ? err.message : 'กรุณาลองใหม่'));
+  }
 });
 
 // ===== ระบบล็อกอิน Google =====
