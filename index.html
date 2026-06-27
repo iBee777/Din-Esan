@@ -627,6 +627,15 @@
   .login-box .login-logo img { width: 100%; height: 100%; object-fit: cover; }
   .login-box h2 { margin: 0 0 6px; font-size: 19px; color: var(--pine-dark); }
   .login-box p { margin: 0 0 24px; font-size: 13.5px; color: var(--ink-soft); }
+  .google-login-fallback {
+    width: min(100%, 320px); min-height: 48px; margin: 0 auto 10px;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    border: 1px solid #dadce0; border-radius: 8px; background: #fff;
+    color: #3c4043; font: 600 16px/1.2 Arial, sans-serif; cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  }
+  .google-login-fallback:active { transform: translateY(1px); }
+  .google-g { font-size: 22px; font-weight: 800; color: #4285f4; }
   .login-error {
     color: var(--danger); font-size: 13px; margin-top: 12px;
     min-height: 18px;
@@ -660,6 +669,9 @@
     <div class="login-logo"><img src="logo.png" alt="logo" onerror="this.style.display='none'"></div>
     <h2>ระบบบันทึกลูกค้าฝากขายที่ดิน</h2>
     <p>กรุณาเข้าสู่ระบบด้วยบัญชี Google ที่ได้รับอนุญาต</p>
+    <button type="button" id="google-login-fallback" class="google-login-fallback">
+      <span class="google-g">G</span> เข้าสู่ระบบด้วย Google
+    </button>
     <div id="google-signin-btn" aria-label="เข้าสู่ระบบด้วย Google"></div>
     <div class="login-error" id="login-error"></div>
   </div>
@@ -2334,6 +2346,65 @@ function handleGoogleCredential(response) {
   }
 }
 
+let loginTokenClient = null;
+
+async function loginWithGoogleToken(){
+  const errorEl = document.getElementById('login-error');
+  errorEl.textContent = 'กำลังเปิดหน้าต่าง Google…';
+  if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+    errorEl.textContent = 'ยังโหลดระบบ Google ไม่เสร็จ กรุณารอสักครู่แล้วกดใหม่';
+    return;
+  }
+  try {
+    if (!loginTokenClient) {
+      loginTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
+        callback: async (tokenResponse) => {
+          if (!tokenResponse || tokenResponse.error || !tokenResponse.access_token) {
+            errorEl.textContent = 'Google ไม่อนุญาตการเข้าสู่ระบบ กรุณาลองใหม่';
+            return;
+          }
+          try {
+            const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
+            });
+            if (!r.ok) throw new Error('อ่านข้อมูลบัญชีไม่ได้');
+            const profile = await r.json();
+            const email = profile.email || '';
+            if (!email) throw new Error('ไม่พบอีเมลจากบัญชี Google');
+            if (!isEmailAllowed(email)) {
+              errorEl.textContent = `อีเมล ${email} ไม่ได้รับอนุญาต กรุณาติดต่อผู้ดูแลระบบ`;
+              return;
+            }
+            currentUser = { email, name: profile.name || email, picture: profile.picture || '' };
+            accessToken = tokenResponse.access_token;
+            tokenExpiresAt = Date.now() + ((Number(tokenResponse.expires_in) || 3600) * 1000);
+            document.getElementById('user-name').textContent = currentUser.name;
+            document.getElementById('user-avatar').src = currentUser.picture;
+            errorEl.textContent = '';
+            updateDriveUi(true);
+            showApp();
+          } catch(err) {
+            console.error(err);
+            errorEl.textContent = 'เข้าสู่ระบบไม่สำเร็จ: ' + (err.message || err);
+          }
+        },
+        error_callback: (err) => {
+          console.error('Google OAuth popup error:', err);
+          errorEl.textContent = 'เปิดหน้าต่าง Google ไม่สำเร็จ กรุณาอนุญาต Pop-up แล้วลองใหม่';
+        }
+      });
+    }
+    loginTokenClient.requestAccessToken({ prompt: 'select_account' });
+  } catch(err) {
+    console.error(err);
+    errorEl.textContent = 'เปิดระบบเข้าสู่ระบบไม่ได้: ' + (err.message || err);
+  }
+}
+
+document.getElementById('google-login-fallback').addEventListener('click', loginWithGoogleToken);
+
 let googleLoginInitialized = false;
 function initGoogleLogin() {
   const errorEl = document.getElementById('login-error');
@@ -2363,6 +2434,9 @@ function initGoogleLogin() {
       width: Math.min(320, Math.max(240, window.innerWidth - 130)),
       locale: 'th'
     });
+    if (buttonEl.childElementCount > 0) {
+      document.getElementById('google-login-fallback').style.display = 'none';
+    }
     googleLoginInitialized = true;
     errorEl.textContent = '';
   } catch (e) {

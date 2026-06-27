@@ -123,9 +123,9 @@
 })();
 /* ===== จบระบบจัดเก็บข้อมูล ===== */
 
-/* ====== ตั้งค่า Google Drive (ทำครั้งเดียว) ======
+/* ====== ตั้งค่า Google Drive + Google Calendar (ทำครั้งเดียว) ======
    1. ไปที่ https://console.cloud.google.com/ สร้างโปรเจกต์ใหม่ (หรือใช้โปรเจกต์เดิม)
-   2. เปิดใช้งาน "Google Drive API" ในเมนู APIs & Services > Library
+   2. เปิดใช้งาน "Google Drive API" และ "Google Calendar API" ในเมนู APIs & Services > Library
    3. ไปที่ APIs & Services > Credentials > Create Credentials > OAuth client ID
       - Application type: Web application
       - Authorized JavaScript origins: ใส่ URL ของหน้านี้ที่จะใช้งานจริง
@@ -143,6 +143,9 @@ const GOOGLE_CLIENT_ID = '203310648822-st6pfgi8f8mdpgjcdvvue0mkgf6nr459.apps.goo
 /* อีเมล Google Drive ที่จะเชื่อมต่ออัตโนมัติเมื่อผู้ใช้ล็อกอิน */
 const DRIVE_OWNER_EMAIL = 'ibeephoto87@gmail.com';
 const LINE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbyjNi2QVWsZIIVZGe6jT7cKRJTPJHPDskujhG17CIO7Ox_jxxmZyTJi7wU5zgYWJbt3/exec';
+
+/* คีย์หลักสำหรับเก็บรายการลูกค้าใน localStorage */
+const STORAGE_KEY = 'land_client_records';
 
 /* ====== ตั้งค่าอีเมลที่อนุญาต (จำกัดการเข้าถึง) ======
    ใส่อีเมล Google ที่อนุญาตให้เข้าใช้งานระบบ
@@ -233,6 +236,7 @@ async function loadRecords(){
 async function saveRecords(){
   try{
     await window.storage.set(STORAGE_KEY, JSON.stringify(records), false);
+    scheduleDriveAutoSave();
     return true;
   }catch(e){
     console.error('บันทึกข้อมูลไม่สำเร็จ', e);
@@ -589,6 +593,7 @@ async function loadAppointments(){
 async function saveAppointments(){
   try{
     await window.storage.set(APPT_STORAGE_KEY, JSON.stringify(appointments), false);
+    scheduleDriveAutoSave();
   }catch(e){
     console.error('บันทึกนัดหมายไม่สำเร็จ', e);
     alert('เกิดข้อผิดพลาดในการบันทึกนัดหมาย');
@@ -685,6 +690,7 @@ function renderApptListForSelected(){
         <div><span class="appt-time">${a.time ? escapeHtml(a.time) + ' น.' : 'ไม่ระบุเวลา'}</span> — <span class="appt-customer">${escapeHtml(a.customerName || 'ไม่ระบุลูกค้า')}</span></div>
         ${a.location ? `<div class="appt-meta">สถานที่: ${escapeHtml(a.location)}${mapUrl ? ` &nbsp;<button type="button" class="icon-btn map-btn" style="display:inline-flex; width:auto; height:auto; padding:2px 8px; font-size:11.5px;" data-coords="${escapeHtml(a.location)}" onclick="openMap(this.dataset.coords)">แผนที่</button>` : ''}</div>` : ''}
         ${a.notes ? `<div class="appt-meta">${escapeHtml(a.notes)}</div>` : ''}
+        ${a.calendarHtmlLink ? `<div class="appt-meta"><a href="${escapeHtml(a.calendarHtmlLink)}" target="_blank" rel="noopener">เปิดใน Google Calendar</a></div>` : ''}
       </div>
       <div class="appt-actions">
         <button type="button" class="icon-btn danger" title="ลบนัดหมาย" onclick="deleteAppointment('${a.id}')">ลบ</button>
@@ -693,8 +699,71 @@ function renderApptListForSelected(){
   }).join('');
 }
 
+
+function calendarEventBodyFor(appt){
+  const title = appt.customerName ? `นัดดูพื้นที่ — ${appt.customerName}` : 'นัดดูพื้นที่';
+  const descriptionParts = [];
+  if(appt.notes) descriptionParts.push(appt.notes);
+  if(appt.customerId){
+    const r = records.find(x => x.id === appt.customerId);
+    if(r){
+      if(r.phone) descriptionParts.push(`โทร: ${r.phone}`);
+      if(r.deed) descriptionParts.push(`เลขโฉนด: ${r.deed}`);
+    }
+  }
+  const body = {
+    summary: title,
+    location: appt.location || '',
+    description: descriptionParts.join('\n'),
+  };
+  if(appt.time){
+    const start = new Date(`${appt.date}T${appt.time}:00+07:00`);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+    body.start = {dateTime: start.toISOString(), timeZone: 'Asia/Bangkok'};
+    body.end = {dateTime: end.toISOString(), timeZone: 'Asia/Bangkok'};
+  }else{
+    const startDate = appt.date;
+    const d = new Date(`${appt.date}T00:00:00+07:00`);
+    d.setDate(d.getDate() + 1);
+    const endDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    body.start = {date: startDate};
+    body.end = {date: endDate};
+  }
+  return body;
+}
+
+async function createGoogleCalendarEvent(appt){
+  if(!driveAccessToken) throw new Error('กรุณาเชื่อมต่อ Google ก่อนลงคิว Calendar');
+  const res = await driveFetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(calendarEventBodyFor(appt))
+  });
+  if(!res.ok){
+    const detail = await res.text();
+    throw new Error('สร้างนัดหมายใน Google Calendar ไม่สำเร็จ: ' + detail);
+  }
+  return await res.json();
+}
+
+async function deleteGoogleCalendarEvent(eventId){
+  if(!eventId || !driveAccessToken) return false;
+  const res = await driveFetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=none`, {method:'DELETE'});
+  if(res.status === 404 || res.status === 410) return true;
+  if(!res.ok) throw new Error('ลบนัดหมายจาก Google Calendar ไม่สำเร็จ');
+  return true;
+}
+
 async function deleteAppointment(id){
   if(!confirm('ต้องการลบนัดหมายนี้หรือไม่?')) return;
+  const appt = appointments.find(a => a.id === id);
+  if(appt && appt.calendarEventId && driveAccessToken){
+    try{ await deleteGoogleCalendarEvent(appt.calendarEventId); }
+    catch(e){
+      console.error(e);
+      if(!confirm('ลบจาก Google Calendar ไม่สำเร็จ ต้องการลบเฉพาะในระบบนี้ต่อหรือไม่?')) return;
+    }
+  }
   appointments = appointments.filter(a => a.id !== id);
   await saveAppointments();
   renderCalendar();
@@ -728,6 +797,22 @@ document.getElementById('appt-form').addEventListener('submit', async (e) => {
     notes: document.getElementById('appt-notes').value.trim(),
     createdAt: Date.now()
   };
+  const addToGoogleCalendar = document.getElementById('appt-google-calendar').checked;
+  if(addToGoogleCalendar){
+    if(!driveAccessToken){
+      alert('กรุณากด “เชื่อมต่อ Google” ก่อน เพื่ออนุญาตให้ลงคิวใน Google Calendar');
+      requestDriveLogin();
+      return;
+    }
+    try{
+      const event = await createGoogleCalendarEvent(appt);
+      appt.calendarEventId = event.id || '';
+      appt.calendarHtmlLink = event.htmlLink || '';
+    }catch(err){
+      console.error('Calendar create error', err);
+      if(!confirm('ลงคิวใน Google Calendar ไม่สำเร็จ\n' + (err.message || '') + '\n\nต้องการบันทึกเฉพาะในระบบนี้หรือไม่?')) return;
+    }
+  }
   appointments.push(appt);
   await saveAppointments();
 
@@ -807,7 +892,8 @@ async function buildBackupPayload(){
   return {
     exportedAt: new Date().toISOString(),
     count: records.length,
-    records: exportRecords
+    records: exportRecords,
+    appointments: Array.isArray(appointments) ? appointments : []
   };
 }
 
@@ -982,10 +1068,8 @@ document.getElementById('import-excel-input').addEventListener('change', (e) => 
 let driveTokenClient = null;
 let driveAccessToken = null;
 let driveUploadRequested = false;
-
-function isDriveConfigured(){
-  return GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.indexOf('YOUR_CLIENT_ID_HERE') === -1;
-}
+let driveAutoSaveTimer = null;
+const DRIVE_DB_FILENAME = 'Din-Esan-data.json';
 
 function setDriveStatus(connected, message){
   const dot = document.getElementById('drive-dot');
@@ -993,118 +1077,157 @@ function setDriveStatus(connected, message){
   dot.classList.toggle('on', !!connected);
   text.textContent = message;
   document.getElementById('drive-upload-btn').style.display = connected ? 'inline-block' : 'none';
-  document.getElementById('drive-login-btn').textContent = connected ? 'เปลี่ยนบัญชี Google' : 'เข้าสู่ระบบ Google';
+  document.getElementById('drive-load-btn').style.display = connected ? 'inline-block' : 'none';
+  document.getElementById('drive-login-btn').textContent = connected ? 'เปลี่ยนบัญชี Google' : 'เชื่อมต่อ Google';
 }
 
 function initDriveAuth(){
   if(!isDriveConfigured()){
-    setDriveStatus(false, 'ยังไม่ได้ตั้งค่า Google Drive (ดูคำแนะนำในไฟล์ ตัวแปร GOOGLE_CLIENT_ID)');
+    setDriveStatus(false, 'ยังไม่ได้ตั้งค่า Google Drive');
     return;
   }
-  if(typeof google === 'undefined' || !google.accounts){
-    setDriveStatus(false, 'โหลดระบบเข้าสู่ระบบของ Google ไม่สำเร็จ ลองรีเฟรชหน้านี้');
+  if(typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2){
+    setDriveStatus(false, 'โหลดระบบ Google Drive ไม่สำเร็จ กรุณารีเฟรช');
     return;
   }
   driveTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
-    scope: 'https://www.googleapis.com/auth/drive.file',
-    login_hint: DRIVE_OWNER_EMAIL,
-    callback: (response) => {
+    scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
+    login_hint: currentUser && currentUser.email ? currentUser.email : DRIVE_OWNER_EMAIL,
+    callback: async (response) => {
       if(response && response.access_token){
         driveAccessToken = response.access_token;
-        setDriveStatus(true, 'เชื่อมต่อ Google Drive แล้ว');
+        setDriveStatus(true, 'เชื่อมต่อแล้ว — บันทึก Drive และลงคิว Google Calendar ได้');
         if(driveUploadRequested){
           driveUploadRequested = false;
-          uploadBackupToDrive();
+          await saveDatabaseToDrive(false);
         }
       }else{
-        setDriveStatus(false, 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่');
+        setDriveStatus(false, 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่');
       }
     },
+    error_callback: (err) => {
+      console.error('Google OAuth error', err);
+      setDriveStatus(false, 'หน้าต่าง Google ถูกปิดหรือถูกบล็อก');
+    }
   });
-  setDriveStatus(false, 'ยังไม่เชื่อมต่อ Google Drive');
+  setDriveStatus(false, 'กดเชื่อมต่อ Google เพื่อใช้ Drive และ Calendar');
 }
 
 function requestDriveLogin(){
-  if(!isDriveConfigured()){
-    alert('ยังไม่ได้ตั้งค่า Google Drive สำหรับหน้านี้\n\nเปิดไฟล์นี้ด้วยโปรแกรมแก้ไขข้อความ แล้วดูคำแนะนำการตั้งค่าที่คอมเมนต์ไว้บนสุดของส่วน <script>');
-    return;
-  }
-  if(!driveTokenClient){
-    initDriveAuth();
-  }
+  if(!driveTokenClient) initDriveAuth();
   if(driveTokenClient){
     driveTokenClient.requestAccessToken({ prompt: driveAccessToken ? '' : 'consent' });
   }
 }
 
-async function uploadBackupToDrive(){
+async function driveFetch(url, options={}){
+  if(!driveAccessToken) throw new Error('ยังไม่ได้เชื่อมต่อ Google Drive');
+  const headers = new Headers(options.headers || {});
+  headers.set('Authorization', 'Bearer ' + driveAccessToken);
+  const res = await fetch(url, {...options, headers});
+  if(res.status === 401){
+    driveAccessToken = null;
+    setDriveStatus(false, 'สิทธิ์หมดอายุ กรุณาเชื่อมต่อ Drive ใหม่');
+    throw new Error('สิทธิ์ Google Drive หมดอายุ');
+  }
+  return res;
+}
+
+async function findDriveDatabaseFile(){
+  const q = encodeURIComponent(`name='${DRIVE_DB_FILENAME}' and trashed=false`);
+  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&orderBy=modifiedTime%20desc&fields=files(id,name,modifiedTime)&pageSize=10`;
+  const res = await driveFetch(url);
+  if(!res.ok) throw new Error('ค้นหาไฟล์ใน Drive ไม่สำเร็จ');
+  const data = await res.json();
+  return data.files && data.files.length ? data.files[0] : null;
+}
+
+async function saveDatabaseToDrive(showAlert=true){
   if(!driveAccessToken){
     driveUploadRequested = true;
     requestDriveLogin();
-    return;
+    return false;
   }
-
-  const uploadBtn = document.getElementById('drive-upload-btn');
-  const originalLabel = uploadBtn.textContent;
-  uploadBtn.disabled = true;
-  uploadBtn.textContent = 'กำลังอัปโหลด...';
-
+  const btn = document.getElementById('drive-upload-btn');
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
   try{
     const payload = await buildBackupPayload();
-    const fileContent = JSON.stringify(payload, null, 2);
-    const stamp = todayStr();
-    const fileName = `land-clients-backup-${stamp}.json`;
-    const metadata = { name: fileName, mimeType: 'application/json' };
-    const boundary = 'landclients_boundary_' + Date.now();
-    const multipartBody =
-      `--${boundary}\r\n` +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata) + '\r\n' +
-      `--${boundary}\r\n` +
-      'Content-Type: application/json\r\n\r\n' +
-      fileContent + '\r\n' +
-      `--${boundary}--`;
-
-    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + driveAccessToken,
-        'Content-Type': `multipart/related; boundary="${boundary}"`
-      },
-      body: multipartBody
+    payload.driveSavedAt = new Date().toISOString();
+    const existing = await findDriveDatabaseFile();
+    const metadata = {name: DRIVE_DB_FILENAME, mimeType:'application/json'};
+    const boundary = 'din_esan_' + Date.now();
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(payload)}\r\n--${boundary}--`;
+    const endpoint = existing
+      ? `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=multipart&fields=id,modifiedTime`
+      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime';
+    const res = await driveFetch(endpoint, {
+      method: existing ? 'PATCH' : 'POST',
+      headers: {'Content-Type': `multipart/related; boundary=${boundary}`},
+      body
     });
-
-    if(res.status === 401){
-      driveAccessToken = null;
-      setDriveStatus(false, 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
-      alert('เซสชัน Google หมดอายุ กรุณากดเข้าสู่ระบบ Google อีกครั้งแล้วลองอัปโหลดใหม่');
-      return;
-    }
-    if(!res.ok){
-      const errText = await res.text();
-      throw new Error(errText);
-    }
-
-    await res.json();
-    await setLastBackupDate(stamp);
+    if(!res.ok) throw new Error(await res.text());
+    await setLastBackupDate(todayStr());
     renderBackupUi();
-    alert(`อัปโหลดไฟล์สำรองขึ้น Google Drive สำเร็จ\nไฟล์: ${fileName}\n(ไฟล์จะอยู่ในโฟลเดอร์ของแอปนี้บน Drive ของคุณ)`);
+    setDriveStatus(true, 'บันทึกบน Google Drive แล้ว ' + new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}));
+    if(showAlert) alert('บันทึกข้อมูลทั้งหมดขึ้น Google Drive สำเร็จ');
+    return true;
   }catch(err){
-    console.error('Drive upload error', err);
-    alert('อัปโหลดไป Google Drive ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    console.error('Drive save error', err);
+    setDriveStatus(false, 'บันทึกขึ้น Drive ไม่สำเร็จ');
+    if(showAlert) alert('บันทึกขึ้น Google Drive ไม่สำเร็จ: ' + (err.message || 'กรุณาลองใหม่'));
+    return false;
   }finally{
-    uploadBtn.disabled = false;
-    uploadBtn.textContent = originalLabel;
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+
+function scheduleDriveAutoSave(){
+  if(!driveAccessToken) return;
+  clearTimeout(driveAutoSaveTimer);
+  driveAutoSaveTimer = setTimeout(() => saveDatabaseToDrive(false), 700);
+}
+
+async function loadDatabaseFromDrive(){
+  if(!driveAccessToken){ requestDriveLogin(); return; }
+  try{
+    const file = await findDriveDatabaseFile();
+    if(!file){ alert('ยังไม่พบไฟล์ข้อมูล Din-Esan บน Google Drive'); return; }
+    const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+    if(!res.ok) throw new Error('ดาวน์โหลดข้อมูลไม่สำเร็จ');
+    const parsed = await res.json();
+    if(!Array.isArray(parsed.records)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง');
+    if(records.length && !confirm(`ข้อมูลในเครื่องมี ${records.length} รายการ\nต้องการแทนที่ด้วยข้อมูลจาก Google Drive ${parsed.records.length} รายการหรือไม่?`)) return;
+
+    const imported = [];
+    for(const raw of parsed.records){
+      const {deedFrontImage, deedBackImage, ...rec} = raw;
+      if(deedFrontImage){ await window.storage.set(imageKey(rec.id,'front'), deedFrontImage, false); rec.hasFront=true; }
+      if(deedBackImage){ await window.storage.set(imageKey(rec.id,'back'), deedBackImage, false); rec.hasBack=true; }
+      imported.push(rec);
+    }
+    records = imported;
+    appointments = Array.isArray(parsed.appointments) ? parsed.appointments : [];
+    await window.storage.set(STORAGE_KEY, JSON.stringify(records), false);
+    await window.storage.set(APPT_STORAGE_KEY, JSON.stringify(appointments), false);
+    scheduleDriveAutoSave();
+    render();
+    renderCalendar();
+    setDriveStatus(true, 'โหลดข้อมูลจาก Google Drive แล้ว');
+    alert(`โหลดข้อมูลสำเร็จ ${records.length} รายการ`);
+  }catch(err){
+    console.error('Drive load error', err);
+    alert('โหลดข้อมูลจาก Google Drive ไม่สำเร็จ: ' + (err.message || 'กรุณาลองใหม่'));
   }
 }
 
 document.getElementById('drive-login-btn').addEventListener('click', requestDriveLogin);
-document.getElementById('drive-upload-btn').addEventListener('click', uploadBackupToDrive);
-
-window.addEventListener('load', () => {
-  setTimeout(initDriveAuth, 300);
-});
+document.getElementById('drive-upload-btn').addEventListener('click', () => saveDatabaseToDrive(true));
+document.getElementById('drive-load-btn').addEventListener('click', loadDatabaseFromDrive);
+window.addEventListener('load', () => setTimeout(initDriveAuth, 300));
 
 function handleImportFile(file){
   const reader = new FileReader();
@@ -1271,13 +1394,25 @@ function hideApp() {
   document.getElementById('user-badge').classList.add('hidden');
 }
 
+function decodeJwtPayload(token) {
+  const part = token.split('.')[1];
+  const base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+  const json = decodeURIComponent(
+    atob(padded).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
+  );
+  return JSON.parse(json);
+}
+
 function handleGoogleCredential(response) {
   try {
-    const payload = JSON.parse(atob(response.credential.split('.')[1]));
-    const email = payload.email;
+    if (!response || !response.credential) throw new Error('ไม่พบข้อมูลยืนยันตัวตนจาก Google');
+    const payload = decodeJwtPayload(response.credential);
+    const email = payload.email || '';
     const name = payload.name || email;
     const picture = payload.picture || '';
 
+    if (!email) throw new Error('Google ไม่ได้ส่งอีเมลกลับมา');
     if (!isEmailAllowed(email)) {
       document.getElementById('login-error').textContent =
         `อีเมล ${email} ไม่ได้รับอนุญาต กรุณาติดต่อผู้ดูแลระบบ`;
@@ -1290,25 +1425,109 @@ function handleGoogleCredential(response) {
     document.getElementById('login-error').textContent = '';
     showApp();
   } catch(e) {
-    document.getElementById('login-error').textContent = 'เกิดข้อผิดพลาด กรุณาลองใหม่';
+    console.error('Google sign-in failed:', e);
+    document.getElementById('login-error').textContent =
+      'เข้าสู่ระบบไม่สำเร็จ กรุณารีเฟรชหน้าเว็บแล้วลองใหม่';
   }
 }
 
+let loginTokenClient = null;
+
+async function loginWithGoogleToken(){
+  const errorEl = document.getElementById('login-error');
+  errorEl.textContent = 'กำลังเปิดหน้าต่าง Google…';
+  if (typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2) {
+    errorEl.textContent = 'ยังโหลดระบบ Google ไม่เสร็จ กรุณารอสักครู่แล้วกดใหม่';
+    return;
+  }
+  try {
+    if (!loginTokenClient) {
+      loginTokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'openid email profile https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events',
+        callback: async (tokenResponse) => {
+          if (!tokenResponse || tokenResponse.error || !tokenResponse.access_token) {
+            errorEl.textContent = 'Google ไม่อนุญาตการเข้าสู่ระบบ กรุณาลองใหม่';
+            return;
+          }
+          try {
+            const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
+            });
+            if (!r.ok) throw new Error('อ่านข้อมูลบัญชีไม่ได้');
+            const profile = await r.json();
+            const email = profile.email || '';
+            if (!email) throw new Error('ไม่พบอีเมลจากบัญชี Google');
+            if (!isEmailAllowed(email)) {
+              errorEl.textContent = `อีเมล ${email} ไม่ได้รับอนุญาต กรุณาติดต่อผู้ดูแลระบบ`;
+              return;
+            }
+            currentUser = { email, name: profile.name || email, picture: profile.picture || '' };
+            accessToken = tokenResponse.access_token;
+            tokenExpiresAt = Date.now() + ((Number(tokenResponse.expires_in) || 3600) * 1000);
+            document.getElementById('user-name').textContent = currentUser.name;
+            document.getElementById('user-avatar').src = currentUser.picture;
+            errorEl.textContent = '';
+            updateDriveUi(true);
+            showApp();
+          } catch(err) {
+            console.error(err);
+            errorEl.textContent = 'เข้าสู่ระบบไม่สำเร็จ: ' + (err.message || err);
+          }
+        },
+        error_callback: (err) => {
+          console.error('Google OAuth popup error:', err);
+          errorEl.textContent = 'เปิดหน้าต่าง Google ไม่สำเร็จ กรุณาอนุญาต Pop-up แล้วลองใหม่';
+        }
+      });
+    }
+    loginTokenClient.requestAccessToken({ prompt: 'select_account' });
+  } catch(err) {
+    console.error(err);
+    errorEl.textContent = 'เปิดระบบเข้าสู่ระบบไม่ได้: ' + (err.message || err);
+  }
+}
+
+document.getElementById('google-login-fallback').addEventListener('click', loginWithGoogleToken);
+
+let googleLoginInitialized = false;
 function initGoogleLogin() {
-  if (typeof google === 'undefined' || !google.accounts) {
+  const errorEl = document.getElementById('login-error');
+  const buttonEl = document.getElementById('google-signin-btn');
+  if (googleLoginInitialized) return;
+  if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+    errorEl.textContent = 'กำลังโหลดระบบ Google…';
     setTimeout(initGoogleLogin, 500);
     return;
   }
-  google.accounts.id.initialize({
-    client_id: GOOGLE_CLIENT_ID,
-    callback: handleGoogleCredential,
-    auto_select: false,
-    cancel_on_tap_outside: false,
-  });
-
-  document.getElementById('google-signin-btn').addEventListener('click', () => {
-    google.accounts.id.prompt();
-  });
+  try {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleGoogleCredential,
+      auto_select: false,
+      cancel_on_tap_outside: false,
+      ux_mode: 'popup'
+    });
+    buttonEl.innerHTML = '';
+    google.accounts.id.renderButton(buttonEl, {
+      type: 'standard',
+      theme: 'outline',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'rectangular',
+      logo_alignment: 'left',
+      width: Math.min(320, Math.max(240, window.innerWidth - 130)),
+      locale: 'th'
+    });
+    if (buttonEl.childElementCount > 0) {
+      document.getElementById('google-login-fallback').style.display = 'none';
+    }
+    googleLoginInitialized = true;
+    errorEl.textContent = '';
+  } catch (e) {
+    console.error('Google login initialization failed:', e);
+    errorEl.textContent = 'โหลดปุ่ม Google ไม่สำเร็จ กรุณาตรวจการตั้งค่า OAuth และรีเฟรชหน้าเว็บ';
+  }
 }
 
 document.getElementById('logout-btn').addEventListener('click', () => {
