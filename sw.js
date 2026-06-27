@@ -1,4 +1,4 @@
-const CACHE_NAME = 'din-esan-v6-calendar';
+const CACHE_NAME = 'din-esan-v7-calendar';
 const APP_FILES = ['./', './index.html', './style.css', './logo.png', './site.webmanifest'];
 
 self.addEventListener('install', (event) => {

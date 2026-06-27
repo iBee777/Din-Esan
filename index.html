@@ -1713,10 +1713,7 @@ document.getElementById('appt-form').addEventListener('submit', async (e) => {
       appt.calendarHtmlLink = event.htmlLink || '';
     }catch(err){
       console.error('Calendar create error', err);
-      if(!confirm('ลงคิวใน Google Calendar ไม่สำเร็จ
-' + (err.message || '') + '
-
-ต้องการบันทึกเฉพาะในระบบนี้หรือไม่?')) return;
+      if(!confirm('ลงคิวใน Google Calendar ไม่สำเร็จ\n' + (err.message || '') + '\n\nต้องการบันทึกเฉพาะในระบบนี้หรือไม่?')) return;
     }
   }
   appointments.push(appt);
