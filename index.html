@@ -1082,6 +1082,7 @@ function buildLineMessage(record){
 async function sendLineNotification(record){
   if(!LINE_PROXY_URL) throw new Error('ยังไม่ได้ตั้งค่า LINE_PROXY_URL');
   const message = buildLineMessage(record);
+  const startedAt = Date.now();
   const payload = {
     action: 'new_customer',
     type: 'new_customer',
@@ -1090,32 +1091,37 @@ async function sendLineNotification(record){
     timestamp: new Date().toISOString()
   };
 
-  // ใช้ text/plain เพื่อไม่ให้เบราว์เซอร์ส่ง CORS preflight ซึ่งมักทำให้ Google Apps Script รับคำขอไม่ได้
-  try{
-    const response = await fetch(LINE_PROXY_URL, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: {'Content-Type': 'text/plain;charset=utf-8'},
-      body: JSON.stringify(payload)
-    });
-    if(!response.ok) throw new Error(`เซิร์ฟเวอร์ตอบกลับ ${response.status}`);
-    return true;
-  }catch(firstError){
-    // กรณี Apps Script ส่งสำเร็จแต่เบราว์เซอร์บล็อกการอ่านผลลัพธ์ด้วย CORS
+  const formBody = 'payload=' + encodeURIComponent(JSON.stringify(payload));
+  await fetch(LINE_PROXY_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    cache: 'no-store',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'},
+    body: formBody
+  });
+
+  // ตรวจผลจริงจาก Apps Script แทนการถือว่า no-cors สำเร็จเสมอ
+  for(let i = 0; i < 8; i++){
+    await new Promise(resolve => setTimeout(resolve, 700));
     try{
-      await fetch(LINE_PROXY_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {'Content-Type': 'text/plain;charset=utf-8'},
-        body: JSON.stringify(payload)
-      });
-      return true;
-    }catch(secondError){
-      console.error('ส่ง LINE แจ้งเตือนไม่สำเร็จ', firstError, secondError);
-      throw secondError;
+      const statusUrl = LINE_PROXY_URL + (LINE_PROXY_URL.includes('?') ? '&' : '?') + 'action=line_status&_=' + Date.now();
+      const res = await fetch(statusUrl, {method:'GET', cache:'no-store', redirect:'follow'});
+      if(!res.ok) continue;
+      const status = await res.json();
+      if(!status.configured){
+        throw new Error('ยังไม่ได้ตั้งค่า LINE_CHANNEL_ACCESS_TOKEN หรือ LINE_TO ใน Apps Script');
+      }
+      if(Number(status.lastAt || 0) >= startedAt - 2000){
+        if(status.lastOk) return true;
+        throw new Error(status.lastError || `LINE API ตอบกลับ ${status.responseCode || 'ไม่ทราบสถานะ'}`);
+      }
+    }catch(err){
+      if(i === 7) throw err;
     }
   }
+  throw new Error('ไม่พบผลการส่ง LINE ล่าสุดใน Apps Script');
 }
+
 
 /* ===== ฐานข้อมูลกลางสำหรับใช้งานหลายเครื่อง =====
    ใช้ Google Apps Script URL เดียวกับ LINE_PROXY_URL โดย Apps Script ต้องอัปเกรดเป็น Code.gs ที่แนบมาในชุดไฟล์นี้
@@ -1182,12 +1188,18 @@ async function syncRecordsFromShared(showError=false){
 function startSharedSync(){
   clearInterval(sharedSyncTimer);
   sharedSyncTimer = setInterval(() => {
-    if(document.visibilityState === 'visible') syncRecordsFromShared(false);
+    if(document.visibilityState === 'visible'){
+      syncRecordsFromShared(false);
+      syncAppointmentsFromShared(false);
+    }
   }, 15000);
 }
 
 document.addEventListener('visibilitychange', () => {
-  if(document.visibilityState === 'visible') syncRecordsFromShared(false);
+  if(document.visibilityState === 'visible'){
+    syncRecordsFromShared(false);
+    syncAppointmentsFromShared(false);
+  }
 });
 
 /* คีย์หลักสำหรับเก็บรายการลูกค้าใน localStorage */
@@ -1679,6 +1691,59 @@ async function saveAppointments(){
   }
 }
 
+function appointmentsSignature(items){
+  return (items || []).map(a => `${a.id}:${a.updatedAt || a.createdAt || 0}`).sort().join('|');
+}
+
+async function sharedAppointmentRequest(action, data=null){
+  if(!SHARED_DB_URL) throw new Error('ยังไม่ได้ตั้งค่า SHARED_DB_URL');
+  if(action === 'list_appointments'){
+    const url = SHARED_DB_URL + (SHARED_DB_URL.includes('?') ? '&' : '?') + 'action=list_appointments&_=' + Date.now();
+    const res = await fetch(url, {method:'GET', cache:'no-store', redirect:'follow'});
+    if(!res.ok) throw new Error(`ฐานข้อมูลนัดหมายตอบกลับ ${res.status}`);
+    const json = await res.json();
+    if(!json || json.ok !== true || !Array.isArray(json.appointments)) throw new Error(json && json.error ? json.error : 'รูปแบบข้อมูลนัดหมายไม่ถูกต้อง');
+    return json;
+  }
+  const payload = {action, data, timestamp:new Date().toISOString()};
+  const formBody = 'payload=' + encodeURIComponent(JSON.stringify(payload));
+  await fetch(SHARED_DB_URL, {
+    method:'POST', mode:'no-cors', cache:'no-store',
+    headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+    body:formBody
+  });
+  return true;
+}
+
+let appointmentSyncInProgress = false;
+async function syncAppointmentsFromShared(showError=false){
+  if(appointmentSyncInProgress || !SHARED_DB_URL) return false;
+  appointmentSyncInProgress = true;
+  try{
+    const result = await sharedAppointmentRequest('list_appointments');
+    const incoming = result.appointments || [];
+    if(incoming.length === 0 && appointments.length > 0){
+      // ย้ายข้อมูลนัดหมายเดิมจากเครื่องนี้ขึ้นฐานกลางครั้งแรก
+      for(const appt of appointments){
+        await sharedAppointmentRequest('upsert_appointment', appt);
+      }
+      return true;
+    }
+    if(appointmentsSignature(incoming) !== appointmentsSignature(appointments)){
+      appointments = incoming;
+      await saveAppointments();
+      renderCalendar();
+    }
+    return true;
+  }catch(err){
+    console.warn('ซิงก์นัดหมายจากฐานข้อมูลกลางไม่สำเร็จ', err);
+    if(showError) alert('โหลดนัดหมายส่วนกลางไม่สำเร็จ: ' + (err.message || 'กรุณาลองใหม่'));
+    return false;
+  }finally{
+    appointmentSyncInProgress = false;
+  }
+}
+
 function apptDateKey(d){
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -1845,6 +1910,8 @@ async function deleteAppointment(id){
   }
   appointments = appointments.filter(a => a.id !== id);
   await saveAppointments();
+  try{ await sharedAppointmentRequest('delete_appointment', {id}); }
+  catch(e){ console.error('ลบนัดหมายจากฐานกลางไม่สำเร็จ', e); alert('ลบในเครื่องแล้ว แต่ยังลบจากเครื่องอื่นไม่สำเร็จ'); }
   renderCalendar();
 }
 
@@ -1874,7 +1941,8 @@ document.getElementById('appt-form').addEventListener('submit', async (e) => {
     time: document.getElementById('appt-time').value,
     location: document.getElementById('appt-location').value.trim(),
     notes: document.getElementById('appt-notes').value.trim(),
-    createdAt: Date.now()
+    createdAt: Date.now(),
+    updatedAt: Date.now()
   };
   const addToGoogleCalendar = document.getElementById('appt-google-calendar').checked;
   if(addToGoogleCalendar){
@@ -1894,6 +1962,12 @@ document.getElementById('appt-form').addEventListener('submit', async (e) => {
   }
   appointments.push(appt);
   await saveAppointments();
+  try{
+    await sharedAppointmentRequest('upsert_appointment', appt);
+  }catch(err){
+    console.error('บันทึกนัดหมายเข้าฐานกลางไม่สำเร็จ', err);
+    alert('บันทึกนัดหมายไว้ในเครื่องแล้ว แต่ยังไม่ขึ้นในเครื่องอื่น กรุณาตรวจสอบ Google Apps Script');
+  }
 
   document.getElementById('appt-time').value = '';
   document.getElementById('appt-location').value = '';
@@ -2671,6 +2745,7 @@ async function init(){
   document.getElementById('appt-date').value = selectedCalDate;
   await loadRecords();
   await syncRecordsFromShared(false);
+  await syncAppointmentsFromShared(false);
   startSharedSync();
   renderCalendar();
 }

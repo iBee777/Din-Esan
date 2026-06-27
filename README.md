@@ -146,3 +146,13 @@ http://localhost:8000
 - อัปเดต Service Worker cache เพื่อบังคับโหลดไฟล์ใหม่
 
 หลังอัปโหลดขึ้น GitHub ให้ปิดเว็บทุกแท็บ ล้างข้อมูลเว็บไซต์ `ibee777.github.io` แล้วเปิดใหม่
+
+
+## ซิงก์นัดหมายหลายเครื่อง
+อัปเดต Code.gs และ Deploy เป็น New version เพื่อสร้างชีต Appointments และซิงก์ปฏิทินนัดหมายระหว่างมือถือ/คอมพิวเตอร์
+
+
+## LINE ไม่แจ้งเตือน
+เวอร์ชันนี้ตรวจสถานะ LINE จาก Apps Script จริง ไม่ถือว่า `no-cors` สำเร็จอัตโนมัติอีกต่อไป
+ต้องตั้ง Script Properties ให้ครบ: `LINE_CHANNEL_ACCESS_TOKEN` และ `LINE_TO` แล้ว Deploy เป็น New version
+หาก Token หรือรหัสผู้รับผิด ระบบจะแจ้งข้อความผิดพลาดจาก LINE API บนหน้าเว็บ
