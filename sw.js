@@ -1,4 +1,4 @@
-const CACHE_NAME = 'din-esan-v13-shared-sync-fix';
+const CACHE_NAME = 'din-esan-v14-shared-sync-fix';
 const APP_FILES = ['./', './index.html', './style.css', './logo.png', './site.webmanifest'];
 
 self.addEventListener('install', (event) => {

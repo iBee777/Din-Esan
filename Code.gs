@@ -24,7 +24,14 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    // รองรับทั้ง JSON เดิม และ payload จาก application/x-www-form-urlencoded
+    let raw = '';
+    if (e && e.parameter && e.parameter.payload) {
+      raw = e.parameter.payload;
+    } else if (e && e.postData && e.postData.contents) {
+      raw = e.postData.contents;
+    }
+    const body = JSON.parse(raw || '{}');
     const action = String(body.action || body.type || '');
     if (action === 'upsert') {
       const record = body.data || body.customer;

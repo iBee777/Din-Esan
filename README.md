@@ -1,3 +1,7 @@
+# เวอร์ชัน v14 — แก้ POST เข้า Google Sheet
+
+ต้องอัปเดตทั้ง `index.html`, `sw.js` และนำ `Code.gs` ไปวางใน Apps Script จากนั้น Deploy > Manage deployments > Edit > New version > Deploy
+
 # Din-Esan — ระบบบันทึกลูกค้าฝากขายที่ดิน
 
 เว็บแอปภาษาไทยสำหรับบันทึกข้อมูลลูกค้าฝากขายที่ดิน รองรับค้นหา แก้ไข ลบ นัดหมาย แนบภาพโฉนด สำรองข้อมูล JSON ส่งออก Excel และอัปโหลดไฟล์สำรองไป Google Drive
