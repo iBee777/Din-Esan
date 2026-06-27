@@ -669,7 +669,7 @@
     <div class="login-logo"><img src="logo.png" alt="logo" onerror="this.style.display='none'"></div>
     <h2>ระบบบันทึกลูกค้าฝากขายที่ดิน</h2>
     <p>กรุณาเข้าสู่ระบบด้วยบัญชี Google ที่ได้รับอนุญาต</p>
-    <button type="button" id="google-login-fallback" class="google-login-fallback">
+    <button type="button" id="google-login-fallback" class="google-login-fallback" onclick="loginWithGoogleToken(); return false;">
       <span class="google-g">G</span> เข้าสู่ระบบด้วย Google
     </button>
     <div id="google-signin-btn" aria-label="เข้าสู่ระบบด้วย Google"></div>
@@ -1057,8 +1057,8 @@
 const GOOGLE_CLIENT_ID = '203310648822-st6pfgi8f8mdpgjcdvvue0mkgf6nr459.apps.googleusercontent.com';
 /* อีเมล Google Drive ที่จะเชื่อมต่ออัตโนมัติเมื่อผู้ใช้ล็อกอิน */
 const DRIVE_OWNER_EMAIL = 'ibeephoto87@gmail.com';
-cconst LINE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbwaHgeIwBYCtIIdscqEJ5izjx-J_K_LzScG47A_ym0APKSiMmdpLvG64PJMEScYNwkwww/exec;
-const SHARED_DB_URL = LINE_PROXY_URL;
+const LINE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbyjNi2QVWsZIIVZGe6jT7cKRJTPJHPDskujhG17CIO7Ox_jxxmZyTJi7wU5zgYWJbt3/exec';
+
 
 function buildLineMessage(record){
   const fullName = `${record.firstname || ''} ${record.lastname || ''}`.trim();
@@ -2572,7 +2572,7 @@ async function loginWithGoogleToken(){
   }
 }
 
-document.getElementById('google-login-fallback').addEventListener('click', loginWithGoogleToken);
+// ปุ่มล็อกอินเรียก loginWithGoogleToken ผ่าน onclick โดยตรง เพื่อป้องกัน event listener ไม่ทำงานจากแคช/การโหลดสคริปต์
 
 let googleLoginInitialized = false;
 function initGoogleLogin() {
