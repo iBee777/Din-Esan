@@ -1141,16 +1141,16 @@ async function sharedDbRequest(action, data=null){
     return json;
   }
   const payload = {action, data, timestamp:new Date().toISOString()};
-  const res = await fetch(SHARED_DB_URL, {
-    method:'POST', redirect:'follow',
+  // Google Apps Script Web App มีการ redirect ข้ามโดเมน ซึ่งบางเบราว์เซอร์มือถือ
+  // ปฏิเสธผลตอบกลับด้วย CORS แม้สคริปต์จะรับข้อมูลแล้ว จึงส่งแบบ no-cors
+  // แล้วตรวจยืนยันผลด้วย GET แยกต่างหาก
+  await fetch(SHARED_DB_URL, {
+    method:'POST',
+    mode:'no-cors',
+    cache:'no-store',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
     body:JSON.stringify(payload)
   });
-  if(!res.ok) throw new Error(`ฐานข้อมูลกลางตอบกลับ ${res.status}`);
-  const text = await res.text();
-  if(text){
-    try{ const json=JSON.parse(text); if(json.ok === false) throw new Error(json.error || 'บันทึกฐานข้อมูลกลางไม่สำเร็จ'); }catch(err){ if(err instanceof SyntaxError){} else throw err; }
-  }
   return true;
 }
 
@@ -1290,13 +1290,31 @@ async function saveRecords(){
   }
 }
 
+function sleep(ms){ return new Promise(resolve => setTimeout(resolve, ms)); }
+
 async function saveRecordToShared(record){
-  await sharedDbRequest('upsert', record);
-  lastSharedSignature = recordsSignature(records);
+  let lastError = null;
+  for(let attempt = 1; attempt <= 3; attempt++){
+    try{
+      await sharedDbRequest('upsert', record);
+      await sleep(900 * attempt);
+      const check = await sharedDbRequest('list');
+      const found = (check.records || []).some(r => String(r.id) === String(record.id));
+      if(found){
+        lastSharedSignature = recordsSignature(check.records || []);
+        return true;
+      }
+      lastError = new Error('ยังไม่พบข้อมูลใน Google Sheet หลังส่งครั้งที่ ' + attempt);
+    }catch(err){
+      lastError = err;
+    }
+  }
+  throw lastError || new Error('บันทึกฐานข้อมูลกลางไม่สำเร็จ');
 }
 
 async function deleteRecordFromShared(id){
   await sharedDbRequest('delete', {id});
+  await sleep(900);
 }
 
 async function handleImageInput(e){
