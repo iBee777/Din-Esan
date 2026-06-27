@@ -20,6 +20,12 @@ function doGet(e) {
     if (action === 'list') return jsonOutput({ok:true, records:listRecords()});
     if (action === 'list_appointments') return jsonOutput({ok:true, appointments:listAppointments()});
     if (action === 'line_status') return jsonOutput(getLineStatus());
+    if (action === 'line_notify') {
+      const message = String((e && e.parameter && e.parameter.message) || '').trim();
+      if (!message) throw new Error('Missing LINE message');
+      const lineResult = sendLine(message);
+      return jsonOutput({ok:true, line:lineResult});
+    }
     return jsonOutput({ok:false, error:'Unknown action'});
   } catch (err) {
     return jsonOutput({ok:false, error:String(err && err.message || err)});

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'din-esan-current-fixed-20260627-appt-line-v2';
+const CACHE_NAME = 'din-esan-current-fixed-20260627-appt-line-v2-lineget';
 const APP_FILES = ['./', './index.html', './style.css', './logo.png', './site.webmanifest'];
 
 self.addEventListener('install', (event) => {

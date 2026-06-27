@@ -156,3 +156,7 @@ http://localhost:8000
 เวอร์ชันนี้ตรวจสถานะ LINE จาก Apps Script จริง ไม่ถือว่า `no-cors` สำเร็จอัตโนมัติอีกต่อไป
 ต้องตั้ง Script Properties ให้ครบ: `LINE_CHANNEL_ACCESS_TOKEN` และ `LINE_TO` แล้ว Deploy เป็น New version
 หาก Token หรือรหัสผู้รับผิด ระบบจะแจ้งข้อความผิดพลาดจาก LINE API บนหน้าเว็บ
+
+
+## LINE GET FIX
+เวอร์ชันนี้ส่งคำสั่งแจ้งเตือน LINE ผ่าน doGet (`action=line_notify`) เพื่อหลีกเลี่ยงปัญหา POST redirect บน Google Apps Script/GitHub Pages. ต้องอัปเดตทั้ง index.html และ Code.gs แล้ว Deploy เป็น New version.
