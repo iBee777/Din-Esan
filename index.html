@@ -1059,6 +1059,136 @@ const GOOGLE_CLIENT_ID = '203310648822-st6pfgi8f8mdpgjcdvvue0mkgf6nr459.apps.goo
 const DRIVE_OWNER_EMAIL = 'ibeephoto87@gmail.com';
 const LINE_PROXY_URL = 'https://script.google.com/macros/s/AKfycbyjNi2QVWsZIIVZGe6jT7cKRJTPJHPDskujhG17CIO7Ox_jxxmZyTJi7wU5zgYWJbt3/exec';
 
+
+function buildLineMessage(record){
+  const fullName = `${record.firstname || ''} ${record.lastname || ''}`.trim();
+  const location = [record.district, record.province].filter(Boolean).join(', ');
+  const lines = [
+    '🔔 มีลูกค้าใหม่ฝากขายที่ดิน',
+    `ชื่อ: ${fullName || '-'}`,
+    `โทร: ${record.phone || '-'}`,
+    `Line/Facebook: ${record.social || '-'}`,
+    `เลขโฉนด: ${record.deed || '-'}`,
+    `พื้นที่: ${formatArea(record) || '-'}`,
+    `ทำเล: ${location || '-'}`,
+    `ราคาขาย: ${formatPrice(record.price) || '-'}`,
+    `พิกัด: ${record.coords || '-'}`,
+    record.marketing ? `การตลาด: ต้องการ${record.marketingCost ? ` (งบ ${record.marketingCost} บาท)` : ''}` : 'การตลาด: ไม่ได้เลือก',
+    record.notes ? `หมายเหตุ: ${record.notes}` : ''
+  ].filter(Boolean);
+  return lines.join('\n');
+}
+
+async function sendLineNotification(record){
+  if(!LINE_PROXY_URL) throw new Error('ยังไม่ได้ตั้งค่า LINE_PROXY_URL');
+  const message = buildLineMessage(record);
+  const payload = {
+    action: 'new_customer',
+    type: 'new_customer',
+    message,
+    customer: record,
+    timestamp: new Date().toISOString()
+  };
+
+  // ใช้ text/plain เพื่อไม่ให้เบราว์เซอร์ส่ง CORS preflight ซึ่งมักทำให้ Google Apps Script รับคำขอไม่ได้
+  try{
+    const response = await fetch(LINE_PROXY_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: {'Content-Type': 'text/plain;charset=utf-8'},
+      body: JSON.stringify(payload)
+    });
+    if(!response.ok) throw new Error(`เซิร์ฟเวอร์ตอบกลับ ${response.status}`);
+    return true;
+  }catch(firstError){
+    // กรณี Apps Script ส่งสำเร็จแต่เบราว์เซอร์บล็อกการอ่านผลลัพธ์ด้วย CORS
+    try{
+      await fetch(LINE_PROXY_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: {'Content-Type': 'text/plain;charset=utf-8'},
+        body: JSON.stringify(payload)
+      });
+      return true;
+    }catch(secondError){
+      console.error('ส่ง LINE แจ้งเตือนไม่สำเร็จ', firstError, secondError);
+      throw secondError;
+    }
+  }
+}
+
+/* ===== ฐานข้อมูลกลางสำหรับใช้งานหลายเครื่อง =====
+   ใช้ Google Apps Script URL เดียวกับ LINE_PROXY_URL โดย Apps Script ต้องอัปเกรดเป็น Code.gs ที่แนบมาในชุดไฟล์นี้
+   ข้อมูลข้อความลูกค้าจะถูกเก็บใน Google Sheet กลาง ส่วนรูปโฉนดยังคงเก็บเฉพาะในเครื่องเพื่อไม่ให้การซิงก์ช้า
+   ================================================== */
+const SHARED_DB_URL = LINE_PROXY_URL;
+let sharedSyncTimer = null;
+let sharedSyncInProgress = false;
+let lastSharedSignature = '';
+
+function recordsSignature(items){
+  return (items || []).map(r => `${r.id}:${r.updatedAt || r.createdAt || 0}`).sort().join('|');
+}
+
+async function sharedDbRequest(action, data=null){
+  if(!SHARED_DB_URL) throw new Error('ยังไม่ได้ตั้งค่า SHARED_DB_URL');
+  if(action === 'list'){
+    const url = SHARED_DB_URL + (SHARED_DB_URL.includes('?') ? '&' : '?') + 'action=list&_=' + Date.now();
+    const res = await fetch(url, {method:'GET', cache:'no-store', redirect:'follow'});
+    if(!res.ok) throw new Error(`ฐานข้อมูลกลางตอบกลับ ${res.status}`);
+    const json = await res.json();
+    if(!json || json.ok !== true || !Array.isArray(json.records)) throw new Error(json && json.error ? json.error : 'รูปแบบข้อมูลจากฐานข้อมูลกลางไม่ถูกต้อง');
+    return json;
+  }
+  const payload = {action, data, timestamp:new Date().toISOString()};
+  const res = await fetch(SHARED_DB_URL, {
+    method:'POST', redirect:'follow',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify(payload)
+  });
+  if(!res.ok) throw new Error(`ฐานข้อมูลกลางตอบกลับ ${res.status}`);
+  const text = await res.text();
+  if(text){
+    try{ const json=JSON.parse(text); if(json.ok === false) throw new Error(json.error || 'บันทึกฐานข้อมูลกลางไม่สำเร็จ'); }catch(err){ if(err instanceof SyntaxError){} else throw err; }
+  }
+  return true;
+}
+
+async function syncRecordsFromShared(showError=false){
+  if(sharedSyncInProgress || !SHARED_DB_URL) return false;
+  sharedSyncInProgress = true;
+  try{
+    const result = await sharedDbRequest('list');
+    const incoming = result.records || [];
+    const sig = recordsSignature(incoming);
+    if(sig !== recordsSignature(records)){
+      records = incoming;
+      await window.storage.set(STORAGE_KEY, JSON.stringify(records), false);
+      render();
+      populateAppointmentCustomers();
+    }
+    lastSharedSignature = sig;
+    return true;
+  }catch(err){
+    console.warn('ซิงก์ข้อมูลจากฐานข้อมูลกลางไม่สำเร็จ', err);
+    if(showError) alert('โหลดรายการส่วนกลางไม่สำเร็จ: ' + (err.message || 'กรุณาลองใหม่'));
+    return false;
+  }finally{
+    sharedSyncInProgress = false;
+  }
+}
+
+function startSharedSync(){
+  clearInterval(sharedSyncTimer);
+  sharedSyncTimer = setInterval(() => {
+    if(document.visibilityState === 'visible') syncRecordsFromShared(false);
+  }, 15000);
+}
+
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') syncRecordsFromShared(false);
+});
+
 /* คีย์หลักสำหรับเก็บรายการลูกค้าใน localStorage */
 const STORAGE_KEY = 'land_client_records';
 
@@ -1158,6 +1288,15 @@ async function saveRecords(){
     alert('บันทึกข้อมูลไม่สำเร็จ: ' + (e && e.message ? e.message : 'กรุณาลองใหม่'));
     return false;
   }
+}
+
+async function saveRecordToShared(record){
+  await sharedDbRequest('upsert', record);
+  lastSharedSignature = recordsSignature(records);
+}
+
+async function deleteRecordFromShared(id){
+  await sharedDbRequest('delete', {id});
 }
 
 async function handleImageInput(e){
@@ -1480,6 +1619,12 @@ async function deleteRecord(id){
   const r = records.find(x => x.id === id);
   records = records.filter(x => x.id !== id);
   await saveRecords();
+  try{
+    await deleteRecordFromShared(id);
+  }catch(err){
+    console.error('ลบจากฐานข้อมูลกลางไม่สำเร็จ', err);
+    alert('ลบจากเครื่องนี้แล้ว แต่เครื่องอื่นอาจยังเห็นรายการเดิม กรุณาตรวจสอบ Google Apps Script');
+  }
   if(r && r.hasFront){
     try{ await window.storage.delete(imageKey(id, 'front'), false); }catch(e){}
   }
@@ -2258,24 +2403,48 @@ document.getElementById('record-form').addEventListener('submit', async (e) => {
   data.hasFront = hasFront;
   data.hasBack = hasBack;
 
+  const isNewCustomer = !editingId;
+  let savedRecord = null;
   if(editingId){
     const idx = records.findIndex(r => r.id === editingId);
     if(idx !== -1){
       records[idx] = { ...records[idx], ...data, updatedAt: Date.now() };
+      savedRecord = records[idx];
     }
   }else{
-    records.push({
+    savedRecord = {
       id,
       ...data,
       createdAt: Date.now(),
       updatedAt: Date.now()
-    });
+    };
+    records.push(savedRecord);
   }
 
   const saved = await saveRecords();
   if(!saved) throw new Error('ไม่สามารถบันทึกรายการหลักได้');
+
+  let sharedWarning = '';
+  try{
+    await saveRecordToShared(savedRecord);
+  }catch(sharedError){
+    console.error('บันทึกฐานข้อมูลกลางไม่สำเร็จ', sharedError);
+    sharedWarning = '\n\nบันทึกไว้ในเครื่องแล้ว แต่ยังไม่ขึ้นในเครื่องอื่น กรุณาตรวจสอบ Google Apps Script';
+  }
+
+  let lineWarning = '';
+  if(isNewCustomer && savedRecord){
+    try{
+      await sendLineNotification(savedRecord);
+    }catch(lineError){
+      lineWarning = '\n\nบันทึกลูกค้าแล้ว แต่ส่ง LINE แจ้งเตือนไม่สำเร็จ กรุณาตรวจสอบ Web App ของ Google Apps Script';
+    }
+  }
+
   stopEdit();
   render();
+  const warnings = (sharedWarning + lineWarning).trim();
+  if(warnings) alert(warnings);
   }catch(err){
     console.error('บันทึกรายการไม่สำเร็จ', err);
     alert('บันทึกรายการไม่สำเร็จ: ' + (err && err.message ? err.message : 'กรุณาลองใหม่'));
@@ -2464,6 +2633,8 @@ async function init(){
   await loadAppointments();
   document.getElementById('appt-date').value = selectedCalDate;
   await loadRecords();
+  await syncRecordsFromShared(false);
+  startSharedSync();
   renderCalendar();
 }
 init();

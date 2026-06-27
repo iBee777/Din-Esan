@@ -1,4 +1,4 @@
-const CACHE_NAME = 'din-esan-v8-login-fallback';
+const CACHE_NAME = 'din-esan-v10-shared-database';
 const APP_FILES = ['./', './index.html', './style.css', './logo.png', './site.webmanifest'];
 
 self.addEventListener('install', (event) => {

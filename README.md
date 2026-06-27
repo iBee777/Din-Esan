@@ -106,3 +106,26 @@ http://localhost:8000
 5. ตอนเพิ่มนัดหมาย ให้เลือกช่อง **ลง Google Calendar**
 
 นัดหมายที่ระบุเวลาจะสร้างกิจกรรมยาว 1 ชั่วโมง ส่วนรายการที่ไม่ระบุเวลาจะสร้างเป็นกิจกรรมตลอดวัน ระบบบันทึก Calendar Event ID ไว้เพื่อให้การลบนัดหมายในเว็บสามารถลบรายการใน Google Calendar ได้เมื่อยังเชื่อมต่อบัญชีอยู่
+
+
+## v9 LINE notification fix
+- ส่งข้อมูลไป LINE_PROXY_URL อัตโนมัติเมื่อเพิ่มลูกค้าใหม่
+- ใช้ POST แบบ text/plain เพื่อลดปัญหา CORS กับ Google Apps Script
+- เปลี่ยน cache version เพื่อให้ GitHub Pages โหลดโค้ดใหม่
+
+## v10 ใช้งานหลายเครื่องและเห็นรายการเดียวกัน
+
+เวอร์ชันนี้เพิ่มฐานข้อมูลกลางด้วย Google Sheet + Google Apps Script:
+
+1. สร้าง Google Sheet ใหม่ แล้วคัดลอก Spreadsheet ID จาก URL
+2. เปิด **Extensions → Apps Script** และวางไฟล์ `Code.gs`
+3. ที่ **Project Settings → Script Properties** เพิ่มค่า:
+   - `SPREADSHEET_ID`
+   - `LINE_CHANNEL_ACCESS_TOKEN`
+   - `LINE_TO`
+4. กด **Deploy → Manage deployments → Edit → New version**
+5. ตั้ง **Execute as: Me** และ **Who has access: Anyone** แล้ว Deploy
+6. นำ Web app URL ไปใส่ใน `LINE_PROXY_URL` ภายใน `index.html`
+7. อัปโหลดไฟล์เว็บทั้งหมดขึ้น GitHub Pages ใหม่
+
+เมื่อเพิ่ม แก้ไข หรือลบลูกค้าจากเครื่องใด ข้อมูลจะบันทึกใน Google Sheet กลาง และเครื่องอื่นจะอัปเดตรายการเมื่อเปิดหน้าเว็บหรือภายในประมาณ 15 วินาที รูปโฉนดยังคงอยู่เฉพาะเครื่องที่อัปโหลด ส่วนข้อมูลข้อความและรายการลูกค้าจะซิงก์ข้ามเครื่อง
