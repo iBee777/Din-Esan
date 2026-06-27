@@ -1,4 +1,4 @@
-const CACHE_NAME = 'din-esan-v11-login-button-fix';
+const CACHE_NAME = 'din-esan-v12-direct-login';
 const APP_FILES = ['./', './index.html', './style.css', './logo.png', './site.webmanifest'];
 
 self.addEventListener('install', (event) => {
