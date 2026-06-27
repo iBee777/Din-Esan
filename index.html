@@ -1121,7 +1121,8 @@ async function sendLineNotification(record){
    ใช้ Google Apps Script URL เดียวกับ LINE_PROXY_URL โดย Apps Script ต้องอัปเกรดเป็น Code.gs ที่แนบมาในชุดไฟล์นี้
    ข้อมูลข้อความลูกค้าจะถูกเก็บใน Google Sheet กลาง ส่วนรูปโฉนดยังคงเก็บเฉพาะในเครื่องเพื่อไม่ให้การซิงก์ช้า
    ================================================== */
-const SHARED_DB_URL = LINE_PROXY_URL;
+// ใช้ SHARED_DB_URL ที่ประกาศไว้ด้านบน
+
 let sharedSyncTimer = null;
 let sharedSyncInProgress = false;
 let lastSharedSignature = '';
