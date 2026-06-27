@@ -87,3 +87,10 @@ http://localhost:8000
 
 ## เวอร์ชัน v4
 แก้ข้อผิดพลาด `Can't find variable: STORAGE_KEY` ที่ทำให้บันทึกรายการไม่ได้บน Safari/iPhone และปรับ cache เป็น v4 เพื่อบังคับโหลดไฟล์ใหม่
+
+## การบันทึกลง Google Drive (v5)
+1. เปิด Google Drive API ใน Google Cloud Console
+2. OAuth Client ต้องมี Authorized JavaScript origin ของ GitHub Pages เช่น `https://ibee777.github.io`
+3. หลังเข้าเว็บ กด **เชื่อมต่อ Google Drive** และอนุญาตสิทธิ์
+4. ระบบจะสร้าง/อัปเดตไฟล์ `Din-Esan-data.json` และบันทึกอัตโนมัติหลังเพิ่มหรือแก้ไขรายการ
+5. อุปกรณ์ใหม่ให้กด **โหลดข้อมูลจาก Drive**

@@ -856,7 +856,8 @@
     </div>
     <div class="drive-actions">
       <button type="button" class="btn btn-ghost btn-sm" id="drive-login-btn">เข้าสู่ระบบ Google</button>
-      <button type="button" class="btn btn-primary btn-sm" id="drive-upload-btn" style="display:none;">อัปโหลดไป Google Drive</button>
+      <button type="button" class="btn btn-primary btn-sm" id="drive-upload-btn" style="display:none;">บันทึกขึ้น Google Drive</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="drive-load-btn" style="display:none;">โหลดข้อมูลจาก Drive</button>
     </div>
   </div>
 
@@ -1132,6 +1133,7 @@ async function loadRecords(){
 async function saveRecords(){
   try{
     await window.storage.set(STORAGE_KEY, JSON.stringify(records), false);
+    scheduleDriveAutoSave();
     return true;
   }catch(e){
     console.error('บันทึกข้อมูลไม่สำเร็จ', e);
@@ -1488,6 +1490,7 @@ async function loadAppointments(){
 async function saveAppointments(){
   try{
     await window.storage.set(APPT_STORAGE_KEY, JSON.stringify(appointments), false);
+    scheduleDriveAutoSave();
   }catch(e){
     console.error('บันทึกนัดหมายไม่สำเร็จ', e);
     alert('เกิดข้อผิดพลาดในการบันทึกนัดหมาย');
@@ -1706,7 +1709,8 @@ async function buildBackupPayload(){
   return {
     exportedAt: new Date().toISOString(),
     count: records.length,
-    records: exportRecords
+    records: exportRecords,
+    appointments: Array.isArray(appointments) ? appointments : []
   };
 }
 
@@ -1881,10 +1885,8 @@ document.getElementById('import-excel-input').addEventListener('change', (e) => 
 let driveTokenClient = null;
 let driveAccessToken = null;
 let driveUploadRequested = false;
-
-function isDriveConfigured(){
-  return GOOGLE_CLIENT_ID && GOOGLE_CLIENT_ID.indexOf('YOUR_CLIENT_ID_HERE') === -1;
-}
+let driveAutoSaveTimer = null;
+const DRIVE_DB_FILENAME = 'Din-Esan-data.json';
 
 function setDriveStatus(connected, message){
   const dot = document.getElementById('drive-dot');
@@ -1892,118 +1894,157 @@ function setDriveStatus(connected, message){
   dot.classList.toggle('on', !!connected);
   text.textContent = message;
   document.getElementById('drive-upload-btn').style.display = connected ? 'inline-block' : 'none';
-  document.getElementById('drive-login-btn').textContent = connected ? 'เปลี่ยนบัญชี Google' : 'เข้าสู่ระบบ Google';
+  document.getElementById('drive-load-btn').style.display = connected ? 'inline-block' : 'none';
+  document.getElementById('drive-login-btn').textContent = connected ? 'เปลี่ยนบัญชี Google' : 'เชื่อมต่อ Google Drive';
 }
 
 function initDriveAuth(){
   if(!isDriveConfigured()){
-    setDriveStatus(false, 'ยังไม่ได้ตั้งค่า Google Drive (ดูคำแนะนำในไฟล์ ตัวแปร GOOGLE_CLIENT_ID)');
+    setDriveStatus(false, 'ยังไม่ได้ตั้งค่า Google Drive');
     return;
   }
-  if(typeof google === 'undefined' || !google.accounts){
-    setDriveStatus(false, 'โหลดระบบเข้าสู่ระบบของ Google ไม่สำเร็จ ลองรีเฟรชหน้านี้');
+  if(typeof google === 'undefined' || !google.accounts || !google.accounts.oauth2){
+    setDriveStatus(false, 'โหลดระบบ Google Drive ไม่สำเร็จ กรุณารีเฟรช');
     return;
   }
   driveTokenClient = google.accounts.oauth2.initTokenClient({
     client_id: GOOGLE_CLIENT_ID,
     scope: 'https://www.googleapis.com/auth/drive.file',
-    login_hint: DRIVE_OWNER_EMAIL,
-    callback: (response) => {
+    login_hint: currentUser && currentUser.email ? currentUser.email : DRIVE_OWNER_EMAIL,
+    callback: async (response) => {
       if(response && response.access_token){
         driveAccessToken = response.access_token;
-        setDriveStatus(true, 'เชื่อมต่อ Google Drive แล้ว');
+        setDriveStatus(true, 'เชื่อมต่อแล้ว — รายการใหม่จะบันทึกขึ้น Drive อัตโนมัติ');
         if(driveUploadRequested){
           driveUploadRequested = false;
-          uploadBackupToDrive();
+          await saveDatabaseToDrive(false);
         }
       }else{
-        setDriveStatus(false, 'เข้าสู่ระบบไม่สำเร็จ กรุณาลองใหม่');
+        setDriveStatus(false, 'เชื่อมต่อไม่สำเร็จ กรุณาลองใหม่');
       }
     },
+    error_callback: (err) => {
+      console.error('Google OAuth error', err);
+      setDriveStatus(false, 'หน้าต่าง Google ถูกปิดหรือถูกบล็อก');
+    }
   });
-  setDriveStatus(false, 'ยังไม่เชื่อมต่อ Google Drive');
+  setDriveStatus(false, 'กดเชื่อมต่อ Google Drive เพื่อบันทึกข้อมูลออนไลน์');
 }
 
 function requestDriveLogin(){
-  if(!isDriveConfigured()){
-    alert('ยังไม่ได้ตั้งค่า Google Drive สำหรับหน้านี้\n\nเปิดไฟล์นี้ด้วยโปรแกรมแก้ไขข้อความ แล้วดูคำแนะนำการตั้งค่าที่คอมเมนต์ไว้บนสุดของส่วน <script>');
-    return;
-  }
-  if(!driveTokenClient){
-    initDriveAuth();
-  }
+  if(!driveTokenClient) initDriveAuth();
   if(driveTokenClient){
     driveTokenClient.requestAccessToken({ prompt: driveAccessToken ? '' : 'consent' });
   }
 }
 
-async function uploadBackupToDrive(){
+async function driveFetch(url, options={}){
+  if(!driveAccessToken) throw new Error('ยังไม่ได้เชื่อมต่อ Google Drive');
+  const headers = new Headers(options.headers || {});
+  headers.set('Authorization', 'Bearer ' + driveAccessToken);
+  const res = await fetch(url, {...options, headers});
+  if(res.status === 401){
+    driveAccessToken = null;
+    setDriveStatus(false, 'สิทธิ์หมดอายุ กรุณาเชื่อมต่อ Drive ใหม่');
+    throw new Error('สิทธิ์ Google Drive หมดอายุ');
+  }
+  return res;
+}
+
+async function findDriveDatabaseFile(){
+  const q = encodeURIComponent(`name='${DRIVE_DB_FILENAME}' and trashed=false`);
+  const url = `https://www.googleapis.com/drive/v3/files?q=${q}&spaces=drive&orderBy=modifiedTime%20desc&fields=files(id,name,modifiedTime)&pageSize=10`;
+  const res = await driveFetch(url);
+  if(!res.ok) throw new Error('ค้นหาไฟล์ใน Drive ไม่สำเร็จ');
+  const data = await res.json();
+  return data.files && data.files.length ? data.files[0] : null;
+}
+
+async function saveDatabaseToDrive(showAlert=true){
   if(!driveAccessToken){
     driveUploadRequested = true;
     requestDriveLogin();
-    return;
+    return false;
   }
-
-  const uploadBtn = document.getElementById('drive-upload-btn');
-  const originalLabel = uploadBtn.textContent;
-  uploadBtn.disabled = true;
-  uploadBtn.textContent = 'กำลังอัปโหลด...';
-
+  const btn = document.getElementById('drive-upload-btn');
+  const old = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
   try{
     const payload = await buildBackupPayload();
-    const fileContent = JSON.stringify(payload, null, 2);
-    const stamp = todayStr();
-    const fileName = `land-clients-backup-${stamp}.json`;
-    const metadata = { name: fileName, mimeType: 'application/json' };
-    const boundary = 'landclients_boundary_' + Date.now();
-    const multipartBody =
-      `--${boundary}\r\n` +
-      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-      JSON.stringify(metadata) + '\r\n' +
-      `--${boundary}\r\n` +
-      'Content-Type: application/json\r\n\r\n' +
-      fileContent + '\r\n' +
-      `--${boundary}--`;
-
-    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + driveAccessToken,
-        'Content-Type': `multipart/related; boundary="${boundary}"`
-      },
-      body: multipartBody
+    payload.driveSavedAt = new Date().toISOString();
+    const existing = await findDriveDatabaseFile();
+    const metadata = {name: DRIVE_DB_FILENAME, mimeType:'application/json'};
+    const boundary = 'din_esan_' + Date.now();
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(payload)}\r\n--${boundary}--`;
+    const endpoint = existing
+      ? `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=multipart&fields=id,modifiedTime`
+      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,modifiedTime';
+    const res = await driveFetch(endpoint, {
+      method: existing ? 'PATCH' : 'POST',
+      headers: {'Content-Type': `multipart/related; boundary=${boundary}`},
+      body
     });
-
-    if(res.status === 401){
-      driveAccessToken = null;
-      setDriveStatus(false, 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่');
-      alert('เซสชัน Google หมดอายุ กรุณากดเข้าสู่ระบบ Google อีกครั้งแล้วลองอัปโหลดใหม่');
-      return;
-    }
-    if(!res.ok){
-      const errText = await res.text();
-      throw new Error(errText);
-    }
-
-    await res.json();
-    await setLastBackupDate(stamp);
+    if(!res.ok) throw new Error(await res.text());
+    await setLastBackupDate(todayStr());
     renderBackupUi();
-    alert(`อัปโหลดไฟล์สำรองขึ้น Google Drive สำเร็จ\nไฟล์: ${fileName}\n(ไฟล์จะอยู่ในโฟลเดอร์ของแอปนี้บน Drive ของคุณ)`);
+    setDriveStatus(true, 'บันทึกบน Google Drive แล้ว ' + new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'}));
+    if(showAlert) alert('บันทึกข้อมูลทั้งหมดขึ้น Google Drive สำเร็จ');
+    return true;
   }catch(err){
-    console.error('Drive upload error', err);
-    alert('อัปโหลดไป Google Drive ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    console.error('Drive save error', err);
+    setDriveStatus(false, 'บันทึกขึ้น Drive ไม่สำเร็จ');
+    if(showAlert) alert('บันทึกขึ้น Google Drive ไม่สำเร็จ: ' + (err.message || 'กรุณาลองใหม่'));
+    return false;
   }finally{
-    uploadBtn.disabled = false;
-    uploadBtn.textContent = originalLabel;
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+
+function scheduleDriveAutoSave(){
+  if(!driveAccessToken) return;
+  clearTimeout(driveAutoSaveTimer);
+  driveAutoSaveTimer = setTimeout(() => saveDatabaseToDrive(false), 700);
+}
+
+async function loadDatabaseFromDrive(){
+  if(!driveAccessToken){ requestDriveLogin(); return; }
+  try{
+    const file = await findDriveDatabaseFile();
+    if(!file){ alert('ยังไม่พบไฟล์ข้อมูล Din-Esan บน Google Drive'); return; }
+    const res = await driveFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+    if(!res.ok) throw new Error('ดาวน์โหลดข้อมูลไม่สำเร็จ');
+    const parsed = await res.json();
+    if(!Array.isArray(parsed.records)) throw new Error('รูปแบบข้อมูลไม่ถูกต้อง');
+    if(records.length && !confirm(`ข้อมูลในเครื่องมี ${records.length} รายการ\nต้องการแทนที่ด้วยข้อมูลจาก Google Drive ${parsed.records.length} รายการหรือไม่?`)) return;
+
+    const imported = [];
+    for(const raw of parsed.records){
+      const {deedFrontImage, deedBackImage, ...rec} = raw;
+      if(deedFrontImage){ await window.storage.set(imageKey(rec.id,'front'), deedFrontImage, false); rec.hasFront=true; }
+      if(deedBackImage){ await window.storage.set(imageKey(rec.id,'back'), deedBackImage, false); rec.hasBack=true; }
+      imported.push(rec);
+    }
+    records = imported;
+    appointments = Array.isArray(parsed.appointments) ? parsed.appointments : [];
+    await window.storage.set(STORAGE_KEY, JSON.stringify(records), false);
+    await window.storage.set(APPT_STORAGE_KEY, JSON.stringify(appointments), false);
+    scheduleDriveAutoSave();
+    render();
+    renderCalendar();
+    setDriveStatus(true, 'โหลดข้อมูลจาก Google Drive แล้ว');
+    alert(`โหลดข้อมูลสำเร็จ ${records.length} รายการ`);
+  }catch(err){
+    console.error('Drive load error', err);
+    alert('โหลดข้อมูลจาก Google Drive ไม่สำเร็จ: ' + (err.message || 'กรุณาลองใหม่'));
   }
 }
 
 document.getElementById('drive-login-btn').addEventListener('click', requestDriveLogin);
-document.getElementById('drive-upload-btn').addEventListener('click', uploadBackupToDrive);
-
-window.addEventListener('load', () => {
-  setTimeout(initDriveAuth, 300);
-});
+document.getElementById('drive-upload-btn').addEventListener('click', () => saveDatabaseToDrive(true));
+document.getElementById('drive-load-btn').addEventListener('click', loadDatabaseFromDrive);
+window.addEventListener('load', () => setTimeout(initDriveAuth, 300));
 
 function handleImportFile(file){
   const reader = new FileReader();

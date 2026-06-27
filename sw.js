@@ -1,4 +1,4 @@
-const CACHE_NAME = 'din-esan-v4';
+const CACHE_NAME = 'din-esan-v5';
 const APP_FILES = ['./', './index.html', './style.css', './logo.png', './site.webmanifest'];
 
 self.addEventListener('install', (event) => {
