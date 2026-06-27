@@ -1,0 +1,19 @@
+{
+  "name": "ระบบบันทึกลูกค้าฝากขายที่ดิน - ดินอีสาน",
+  "short_name": "ดินอีสาน",
+  "description": "ระบบบันทึกลูกค้าฝากขายที่ดิน ใช้งานผ่านเว็บและจัดเก็บข้อมูลในอุปกรณ์",
+  "lang": "th",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3ECDC",
+  "theme_color": "#2F4A3A",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
