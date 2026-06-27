@@ -83,3 +83,7 @@ http://localhost:8000
 
 ## การแก้ปัญหาบันทึกข้อมูลบน iPhone
 เวอร์ชันนี้เก็บข้อมูลข้อความใน localStorage และเก็บรูปโฉนดใน IndexedDB เพื่อลดปัญหาพื้นที่ localStorage เต็มบน Safari/iPhone โดยรูปเดิมที่เคยอยู่ใน localStorage จะถูกย้ายเมื่อเปิดดูหรือแก้ไขรายการนั้น
+
+
+## เวอร์ชัน v4
+แก้ข้อผิดพลาด `Can't find variable: STORAGE_KEY` ที่ทำให้บันทึกรายการไม่ได้บน Safari/iPhone และปรับ cache เป็น v4 เพื่อบังคับโหลดไฟล์ใหม่
